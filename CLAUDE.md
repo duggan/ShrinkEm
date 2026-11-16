@@ -42,6 +42,19 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
     (`worthReplacing`) and pass a length/video-track check before it's imported.
   - With "save originals first", the original is exported after the re-encode proves
     worthwhile and before anything touches Photos; if that fails the video is untouched.
+- **The queue** (`WorkQueue.swift`): Move and Shrink are `Job`s run one at a time by
+  `WorkQueue`, while the window stays usable. It's its own `ObservableObject` (owned by
+  `Library.queue`) so progress ticks redraw only `ActivityBar` / `QueuePopover`, not the
+  table; progress callbacks are throttled to 0.5% steps. `Library.busyIDs` (published
+  only when it changes) marks videos in waiting or running jobs: they can't be queued
+  again or deleted. Each job re-fetches its assets before working on them (skips any
+  deleted meanwhile), deletes its verified originals in one batch when it finishes (so
+  Photos asks once per job), and Shrink adds the new copies with `Library.addItems`
+  instead of rescanning. While the queue runs, `ProcessInfo.beginActivity` keeps App Nap
+  and idle sleep away; the Dock badge counts videos left; `AppDelegate` asks before
+  quitting (a running Shrink would leave both versions until its job deletes). Measured
+  on a 1,945-video library: no main-thread stall over 60 ms while a job runs; ~100-150 ms
+  once when a job starts or finishes (the table redraws for `busyIDs`).
 - **Kept** marks are local (`UserDefaults` key `kept`, by local identifier) and carried
   over to a shrunk replacement.
 
@@ -53,13 +66,14 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
 - `Sources/SlimreelApp/`:
   - `App.swift`: the app and `Brand` colours (accent is Mint deep `#1FA588`).
   - `Library.swift`: `VideoItem`, scanning, delete, album, Keep, Move to Folder.
-  - `Shrink.swift`: re-encode, import, the shrink workflow, `ShrinkOptionsSheet`.
+  - `Shrink.swift`: re-encode, import, `ShrinkOptionsSheet`.
   - `ContentView.swift`: filter row (date range first), timeline, table, toolbar,
     dialogs, empty states.
   - `Timeline.swift`: `SizeTimeline` (Swift Charts, square-root y scale so one huge month
     doesn't flatten the rest; fixed ticks 1/5/10/20/50… GB; drag selects a month range;
     hover readout above the plot) and `DateRangeControls` (presets, pickers, clear).
-  - `MoveSheet.swift`: progress and summary for Move and Shrink.
+  - `WorkQueue.swift`: `Job`, `WorkQueue` (runner, move and shrink workflows), test hook.
+  - `JobViews.swift`: `ActivityBar`, `QueuePopover`, `JobRow` (progress and summaries).
   - `DetailView.swift`: preview, metadata, `Thumb`, `PlayerView`.
   - `Media.swift`: thumbnails, frame rate (local only), player items.
 - `PlayerView` wraps `AVPlayerView`. Don't switch to SwiftUI's `VideoPlayer`: it
@@ -78,7 +92,14 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
   `SLIMREEL_SHRINKTEST_LOW=1` for 720p/30 and `SLIMREEL_SHRINKTEST_ARCHIVE=1` to also
   export originals. Logs to `shrinktest.log`.
 - `SLIMREEL_RENDER_DIR=<dir>`: renders the timeline with real data to PNGs (light, dark,
-  with a range) via `ImageRenderer`. Slow on a big library; give it a few minutes.
+  with a range) via `ImageRenderer`, and the activity bar and queue popover with sample
+  jobs via an offscreen `NSHostingView` (`ImageRenderer` draws AppKit-backed controls,
+  such as buttons, progress bars and scroll views, as yellow placeholders). Slow on a big
+  library; give it a few minutes.
+- `SLIMREEL_QUEUETEST_DIR=<dir>`: queues dry-run jobs on real videos (files written to
+  `<dir>`, nothing imported or deleted), checks ordering, duplicate and cancel rules and
+  `busyIDs`, and logs the longest main-thread stall. Add `SLIMREEL_QUEUETEST_BIG=1` for a
+  longer shrink (a ~100 MB 4K video).
 
 Run with `open -n --env NAME=value build/Slimreel.app`.
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.png" alt="Slimreel: your biggest videos, first." width="760">
+  <img src="docs/assets/banner.png" alt="Slimreel: find and shrink your biggest videos." width="760">
 </p>
 
 <p align="center"><b>Find the big videos filling your iCloud, and get the space back without losing a thing.</b></p>
@@ -63,6 +63,17 @@ Macs.
 3. Select one or more videos (the side panel previews a single one) and choose **Keep**
    (K), **Shrink**, **Move to Folder** or **Delete** (⌫) from the toolbar or the
    right-click menu.
+
+### The queue
+
+Shrink and Move to Folder jobs go into a queue and run in the background, one after
+another, so you can keep reviewing while they work. The bar at the bottom of the window
+shows what's running; **Queue** lists every job, lets you cancel one that's waiting or
+stop one after its current video, and keeps each job's summary until you clear it.
+Videos in the queue are marked with a clock and can't be queued twice or deleted until
+their job finishes. When a job finishes, Photos asks you to confirm deleting its
+originals, as before. Closing the window doesn't stop the queue (the Dock icon counts
+the videos left), and Slimreel asks before quitting with work still queued.
 
 ### Shrink
 

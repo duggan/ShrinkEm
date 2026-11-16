@@ -57,20 +57,19 @@ struct ContentView: View {
                 get: { pendingMove != nil }, set: { if !$0 { pendingMove = nil } })
             ) {
                 Button("Save to Folder, Then Delete from Photos", role: .destructive) {
-                    if let m = pendingMove { Task { await lib.moveToFolder(m.ids, folder: m.folder) } }
+                    if let m = pendingMove { enqueue(.move(folder: m.folder), m.ids) }
                     pendingMove = nil
                 }
             } message: {
                 Text(moveMessage)
             }
-            .sheet(isPresented: Binding(get: { lib.move != nil }, set: { if !$0 { lib.move = nil } })) {
-                MoveSheet().environmentObject(lib)
-            }
             .onChange(of: lib.selectionInvalidated) { _, ids in selection.subtract(ids) }
+            // In the stack, not a safe-area inset: HSplitView ignores insets.
+            ActivityBarSlot(queue: lib.queue)
         }
         .sheet(isPresented: Binding(get: { pendingShrink != nil }, set: { if !$0 { pendingShrink = nil } })) {
             ShrinkOptionsSheet(ids: pendingShrink ?? []) { settings in
-                if let ids = pendingShrink { Task { await lib.shrink(ids, settings: settings) } }
+                if let ids = pendingShrink { enqueue(.shrink(settings), ids) }
                 pendingShrink = nil
             } cancel: { pendingShrink = nil }
             .environmentObject(lib)
@@ -115,8 +114,39 @@ struct ContentView: View {
         return s
     }
 
+    /// Queues a job and says so if some of the videos were already in one.
+    func enqueue(_ kind: Job.Kind, _ ids: Set<String>) {
+        let queued = lib.queue.enqueue(kind, ids: ids)
+        if queued == 0 {
+            lib.message = "Those videos are already in the queue."
+        } else if queued < ids.count {
+            lib.message = "Queued \(queued) of \(ids.count). The rest are already in the queue."
+        }
+    }
+
+    /// Videos that can go into a new job: not already in one.
+    func queueable(_ ids: Set<String>) -> Set<String>? {
+        let free = ids.subtracting(lib.busyIDs)
+        if free.isEmpty { lib.message = "Those videos are already in the queue."; return nil }
+        return free
+    }
+
+    /// Videos that can be deleted now: not in a queued or running job.
+    func deletable(_ ids: Set<String>) -> Set<String>? {
+        let free = ids.subtracting(lib.busyIDs)
+        if free.isEmpty {
+            lib.message = "Those videos are in the queue. Cancel their job first, or wait for it to finish."
+            return nil
+        }
+        if free.count < ids.count {
+            lib.message = "\(ids.count - free.count) of these are in the queue, so they'll be left out."
+        }
+        return free
+    }
+
     func chooseFolder(for ids: Set<String>) {
-        guard !ids.isEmpty else { return }
+        let ids = ids.subtracting(lib.busyIDs)
+        guard !ids.isEmpty else { lib.message = "Those videos are already in the queue."; return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -181,6 +211,7 @@ struct ContentView: View {
             TableColumn("Name", value: \.filename) { Text($0.filename).lineLimit(1).truncationMode(.middle) }
             TableColumn("") { item in
                 HStack(spacing: 4) {
+                    if lib.busyIDs.contains(item.id) { Image(systemName: "clock").foregroundStyle(.secondary).help("In the queue") }
                     if lib.kept.contains(item.id) { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).help("Kept") }
                     if item.isFavorite { Image(systemName: "heart.fill").foregroundStyle(.pink).help("Favorite") }
                     if item.isEdited { Image(systemName: "slider.horizontal.3").foregroundStyle(.secondary).help("Edited — moving saves the original and the edited version") }
@@ -191,11 +222,11 @@ struct ContentView: View {
             Button(ids.isSubset(of: lib.kept) ? "Unmark Kept" : "Mark as Kept") { lib.toggleKeep(ids) }
             Button("Add to “\(Library.reviewAlbum)” Album") { Task { await lib.addToReviewAlbum(ids) } }
             Divider()
-            Button("Shrink…") { pendingShrink = ids }
+            Button("Shrink…") { pendingShrink = queueable(ids) }
             Button("Move to Folder…") { chooseFolder(for: ids) }
-            Button("Delete…", role: .destructive) { pendingDelete = ids }
+            Button("Delete…", role: .destructive) { pendingDelete = deletable(ids) }
         }
-        .onDeleteCommand { if !selection.isEmpty { pendingDelete = selection } }
+        .onDeleteCommand { if !selection.isEmpty { pendingDelete = deletable(selection) } }
         .overlay { if rows.isEmpty && !lib.loading { emptyState } }
     }
 
@@ -230,15 +261,29 @@ struct ContentView: View {
             Button { Task { await lib.addToReviewAlbum(selection) } } label: { Label("Add to Album", systemImage: "rectangle.stack.badge.plus") }
                 .help("Add selected to the “\(Library.reviewAlbum)” album in Photos")
                 .disabled(selection.isEmpty)
-            Button { pendingShrink = selection } label: { Label("Shrink", systemImage: "arrow.down.right.and.arrow.up.left") }
+            Button { pendingShrink = queueable(selection) } label: { Label("Shrink", systemImage: "arrow.down.right.and.arrow.up.left") }
                 .help("Re-encode at a lower resolution / frame rate and replace the original in Photos")
-                .disabled(selection.isEmpty || lib.move != nil)
+                .disabled(selection.subtracting(lib.busyIDs).isEmpty)
             Button { chooseFolder(for: selection) } label: { Label("Move to Folder", systemImage: "folder.badge.plus") }
                 .help("Save the original files to a folder, then delete them from Photos/iCloud")
-                .disabled(selection.isEmpty || lib.move != nil)
-            Button(role: .destructive) { pendingDelete = selection } label: { Label("Delete", systemImage: "trash") }
+                .disabled(selection.subtracting(lib.busyIDs).isEmpty)
+            Button(role: .destructive) { pendingDelete = deletable(selection) } label: { Label("Delete", systemImage: "trash") }
                 .help("Move selected to Recently Deleted (⌫)")
                 .disabled(selection.isEmpty)
+        }
+    }
+}
+
+/// The activity bar, shown once anything has been queued. It observes the queue so
+/// the rest of the window doesn't redraw on every progress tick.
+struct ActivityBarSlot: View {
+    @ObservedObject var queue: WorkQueue
+    var body: some View {
+        if !queue.jobs.isEmpty {
+            VStack(spacing: 0) {
+                Divider()
+                ActivityBar(queue: queue)
+            }
         }
     }
 }

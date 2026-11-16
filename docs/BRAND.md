@@ -79,7 +79,7 @@ the name swapped.
 
 > Find the big videos filling your iCloud, and get the space back without losing a thing.
 
-Short form, for the banner and the website's `<title>`: **Your biggest videos, first.**
+Short form, for the banner and the website's `<title>`: **Find and shrink your biggest videos.** (It was "Your biggest videos, first." at launch; changed to say what you do with them.)
 
 **Repo description:** the tagline, unchanged.
 
@@ -287,7 +287,7 @@ Subya's banner, quieter.
 - Right two thirds: the wordmark `Slimreel` in SF Pro Rounded Black, `INK`, 160 px,
   tracking -1%. No outline and no tilt; that's Subya's look.
 - Under it, a `Sun` pill with an `INK` outline and a hard `INK` shadow (the one sticker
-  detail carried over), reading "Your biggest videos, first." in SF Pro Rounded Heavy.
+  detail carried over), reading "Find and shrink your biggest videos." in SF Pro Rounded Heavy.
 - Under that, small, `INK`: "Everything stays on your Mac. Free & open source." This
   mirrors Subya's "Burned in, on your Mac. Free & open source."
 
@@ -301,7 +301,7 @@ that file from the system's SF Pro Rounded; run it only when the words change.
 how it works, features, privacy, FAQ, final call) with this palette and SF Rounded in
 place of Impact.
 
-- Left: headline "Your biggest videos, first." Lede: the tagline plus one sentence on
+- Left: headline "Find and shrink your biggest videos." Lede: the tagline plus one sentence on
   the four actions. Buttons: "Download for Mac" (Sun, `INK` border, hard `INK` shadow,
   the same button shape as Subya's) and "Source on GitHub" (ghost). Chips: "Requires
   macOS 14", "Free & open source", "Nothing leaves your Mac".

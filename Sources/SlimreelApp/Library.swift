@@ -42,6 +42,7 @@ final class Library: ObservableObject {
         await reload()
         if let dir = ProcessInfo.processInfo.environment["SLIMREEL_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir)) }
         if let dir = ProcessInfo.processInfo.environment["SLIMREEL_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SLIMREEL_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir)) }
         if let dir = ProcessInfo.processInfo.environment["SLIMREEL_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir)) }
     }
 
@@ -86,32 +87,45 @@ final class Library: ObservableObject {
         var out: [VideoItem] = []
         out.reserveCapacity(fetch.count)
         fetch.enumerateObjects { asset, i, _ in
-            var total: Int64 = 0
-            var original: Int64 = 0
-            var name = ""
-            var edited = false
-            for r in PHAssetResource.assetResources(for: asset) {
-                // `fileSize` isn't public API but is the standard way to read it via KVC.
-                let size = (r.value(forKey: "fileSize") as? NSNumber)?.int64Value ?? 0
-                total += size
-                if r.type == .video {
-                    original = size
-                    name = r.originalFilename
-                }
-                if name.isEmpty { name = r.originalFilename }
-                if r.type == .adjustmentData || r.type == .fullSizeVideo { edited = true }
-            }
-            out.append(VideoItem(
-                id: asset.localIdentifier, asset: asset,
-                bytes: total, originalBytes: original,
-                duration: asset.duration,
-                sortDate: asset.creationDate ?? .distantPast,
-                width: asset.pixelWidth, height: asset.pixelHeight,
-                filename: name, isFavorite: asset.isFavorite, isEdited: edited))
+            out.append(makeItem(asset))
             if i % 50 == 0 { progress(Double(i) / Double(n)) }
         }
         progress(1)
         return out
+    }
+
+    nonisolated static func makeItem(_ asset: PHAsset) -> VideoItem {
+        var total: Int64 = 0
+        var original: Int64 = 0
+        var name = ""
+        var edited = false
+        for r in PHAssetResource.assetResources(for: asset) {
+            // `fileSize` isn't public API but is the standard way to read it via KVC.
+            let size = (r.value(forKey: "fileSize") as? NSNumber)?.int64Value ?? 0
+            total += size
+            if r.type == .video {
+                original = size
+                name = r.originalFilename
+            }
+            if name.isEmpty { name = r.originalFilename }
+            if r.type == .adjustmentData || r.type == .fullSizeVideo { edited = true }
+        }
+        return VideoItem(
+            id: asset.localIdentifier, asset: asset,
+            bytes: total, originalBytes: original,
+            duration: asset.duration,
+            sortDate: asset.creationDate ?? .distantPast,
+            width: asset.pixelWidth, height: asset.pixelHeight,
+            filename: name, isFavorite: asset.isFavorite, isEdited: edited)
+    }
+
+    /// Adds newly created videos (e.g. shrunk copies) without rescanning the library.
+    func addItems(ids: [String]) {
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        var added: [VideoItem] = []
+        fetch.enumerateObjects { asset, _, _ in added.append(Library.makeItem(asset)) }
+        let known = Set(items.map(\.id))
+        items.append(contentsOf: added.filter { !known.contains($0.id) })
     }
 
     func assets(_ ids: Set<String>) -> [PHAsset] {
@@ -142,35 +156,14 @@ final class Library: ObservableObject {
         }
     }
 
-    // MARK: Move to folder (export original, verify, then delete from Photos)
+    // MARK: Background work
 
-    struct MoveProgress {
-        enum Phase { case exporting, deleting, finished }
-        enum Kind { case move, shrink }
-        var kind = Kind.move
-        var phase = Phase.exporting
-        var folder: URL
-        var total: Int
-        var totalBytes: Int64
-        var index = 0
-        var name = ""
-        var doneBytes: Int64 = 0
-        var currentBytes: Int64 = 0
-        var fileProgress = 0.0
-        var exported = 0
-        var exportedBytes: Int64 = 0
-        var deleted = false
-        var stopRequested = false
-        var failures: [String] = []
-        var newBytes: Int64 = 0          // shrink: size of the replacement copies
-        var archiveFolder: URL?          // shrink: where originals were saved, if anywhere
+    /// Move and Shrink jobs, run one after another (see WorkQueue.swift).
+    lazy var queue = WorkQueue(library: self)
 
-        var overall: Double {
-            totalBytes > 0 ? min(1, (Double(doneBytes) + fileProgress * Double(currentBytes)) / Double(totalBytes)) : 0
-        }
-    }
-
-    @Published var move: MoveProgress?
+    /// Videos in a waiting or running job. They can't be queued again or deleted
+    /// until their job finishes. Changes only when jobs start or finish.
+    @Published var busyIDs = Set<String>()
 
     static func freeSpace(at url: URL) -> Int64? {
         // "Important usage" capacity reports 0 on network volumes (SMB/AFP/NFS),
@@ -181,43 +174,7 @@ final class Library: ObservableObject {
         return nil
     }
 
-    func moveToFolder(_ ids: Set<String>, folder: URL) async {
-        let targets = items.filter { ids.contains($0.id) }
-        guard !targets.isEmpty else { return }
-        move = MoveProgress(folder: folder, total: targets.count, totalBytes: targets.reduce(0) { $0 + $1.bytes })
-        var exportedIDs = Set<String>()
-
-        for (i, item) in targets.enumerated() {
-            if move?.stopRequested == true { break }
-            move?.index = i + 1
-            move?.name = item.filename
-            move?.currentBytes = item.bytes
-            move?.fileProgress = 0
-            do {
-                try await Library.export(item.asset, to: folder) { p in
-                    Task { @MainActor [weak self] in self?.move?.fileProgress = p }
-                }
-                exportedIDs.insert(item.id)
-                move?.exported += 1
-                move?.exportedBytes += item.bytes
-            } catch {
-                move?.failures.append("\(item.filename): \(error.localizedDescription)")
-            }
-            move?.doneBytes += item.bytes
-            move?.fileProgress = 0
-        }
-
-        // Only videos whose files were written and verified get deleted.
-        if !exportedIDs.isEmpty {
-            move?.phase = .deleting
-            let ok = await delete(exportedIDs)
-            move?.deleted = ok
-            selectionInvalidated.formUnion(ok ? exportedIDs : [])
-        }
-        move?.phase = .finished
-    }
-
-    /// IDs removed by a move, so the view can drop them from its selection.
+    /// IDs removed by a job, so the view can drop them from its selection.
     @Published var selectionInvalidated = Set<String>()
 
     struct ExportError: LocalizedError {

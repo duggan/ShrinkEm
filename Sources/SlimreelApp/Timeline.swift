@@ -175,6 +175,51 @@ extension Library {
                 try? png.write(to: dir.appendingPathComponent("\(name).png"))
             }
         }
+        renderQueueSnapshots(dir)
         exit(0)
+    }
+
+    /// Renders the activity bar and the queue popover with sample jobs in every state.
+    func renderQueueSnapshots(_ dir: URL) {
+        let picks = Array(items.sorted { $0.bytes > $1.bytes }.prefix(9))
+        guard picks.count == 9 else { return }
+        let folder = URL(fileURLWithPath: "/Volumes/share/Files/iCloudVideos")
+        var running = Job(kind: .shrink(ShrinkSettings(maxHeight: 1080, maxFPS: 60, archiveFolder: folder)), items: Array(picks[0..<4]))
+        running.state = .running; running.index = 2; running.name = picks[1].filename
+        running.currentBytes = picks[1].bytes; running.doneBytes = picks[0].bytes; running.fileProgress = 0.42
+        var waiting = Job(kind: .move(folder: folder), items: Array(picks[4..<6]))
+        waiting.state = .waiting
+        var done = Job(kind: .shrink(ShrinkSettings(maxHeight: 1080, maxFPS: 60)), items: Array(picks[6..<8]))
+        done.state = .finished; done.index = 2; done.done = 2; done.deleted = true
+        done.doneOriginalBytes = 144_000_000; done.newBytes = 17_000_000
+        done.failures = []
+        var partial = Job(kind: .move(folder: folder), items: [picks[8]])
+        partial.state = .finished; partial.failures = ["\(picks[8].filename): The folder isn't available"]
+        let q = WorkQueue(library: self)
+        q.previewJobs([done, partial, running, waiting])
+        // NSHostingView, not ImageRenderer: ImageRenderer can't draw AppKit-backed
+        // controls (buttons, progress bars, scroll views).
+        func render<V: View>(_ name: String, _ v: V, width: CGFloat) {
+            let host = NSHostingView(rootView: v.frame(width: width).background(Color(nsColor: .windowBackgroundColor)))
+            let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: 100),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            let size = host.fittingSize
+            window.setContentSize(size)
+            host.frame = NSRect(origin: .zero, size: size)
+            window.orderBack(nil)
+            host.layoutSubtreeIfNeeded()
+            host.display()
+            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                host.cacheDisplay(in: host.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
+            }
+            window.orderOut(nil)
+        }
+        render("activity-bar", ActivityBar(queue: q).tint(Brand.mintDeep), width: 1150)
+        render("queue-popover", QueuePopover(queue: q).tint(Brand.mintDeep), width: 440)
+        q.previewJobs([done])
+        render("activity-bar-done", ActivityBar(queue: q).tint(Brand.mintDeep), width: 1150)
     }
 }
