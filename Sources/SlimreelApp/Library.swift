@@ -184,7 +184,7 @@ final class Library: ObservableObject {
 
     /// Writes the original video (and the edited version, if any) into `folder`.
     /// Throws unless every file is written and its size matches what Photos reports.
-    nonisolated static func export(_ asset: PHAsset, to folder: URL,
+    nonisolated static func export(_ asset: PHAsset, to folder: URL, cancel: CancelToken? = nil,
                                    progress: @escaping @Sendable (Double) -> Void) async throws {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let original = resources.first(where: { $0.type == .video })
@@ -211,12 +211,11 @@ final class Library: ObservableObject {
         var written: [URL] = []
         do {
             for ((resource, url), size) in zip(jobs, sizes) {
-                let opts = PHAssetResourceRequestOptions()
-                opts.isNetworkAccessAllowed = true
                 let base = before
-                opts.progressHandler = { p in progress(writeShare * (Double(base) + p * Double(size)) / Double(total)) }
-                try await PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: opts)
-                written.append(url)
+                written.append(url)   // before writing, so a partial file is removed on failure
+                try await write(resource, to: url, cancel: cancel) { p in
+                    progress(writeShare * (Double(base) + p * Double(size)) / Double(total))
+                }
 
                 let onDisk = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
                 if onDisk == 0 || (size > 0 && onDisk != size) {
@@ -231,7 +230,7 @@ final class Library: ObservableObject {
             if needsRender {
                 let url = uniqueURL(in: folder, name: "\(base) (edited).mov")
                 written.append(url)
-                try await renderEdited(asset, to: url) { p in progress(0.5 + 0.5 * p) }
+                try await renderEdited(asset, to: url, cancel: cancel) { p in progress(0.5 + 0.5 * p) }
                 if let date = asset.creationDate {
                     try? FileManager.default.setAttributes([.creationDate: date, .modificationDate: date], ofItemAtPath: url.path)
                 }
@@ -245,7 +244,7 @@ final class Library: ObservableObject {
     }
 
     /// Renders the current (edited) version of a video with Photos' edits applied.
-    nonisolated static func renderEdited(_ asset: PHAsset, to url: URL,
+    nonisolated static func renderEdited(_ asset: PHAsset, to url: URL, cancel: CancelToken? = nil,
                                          progress: @escaping @Sendable (Double) -> Void) async throws {
         let opts = PHVideoRequestOptions()
         opts.version = .current
@@ -254,16 +253,22 @@ final class Library: ObservableObject {
         // HEVC keeps the rendered copy close to the original's size; H.264 is the fallback.
         var session: AVAssetExportSession?
         for preset in [AVAssetExportPresetHEVCHighestQuality, AVAssetExportPresetHighestQuality] where session == nil {
+            var key: UUID?
             session = await withCheckedContinuation { cont in
-                PHImageManager.default().requestExportSession(forVideo: asset, options: opts,
-                                                              exportPreset: preset) { s, _ in
+                let id = PHImageManager.default().requestExportSession(forVideo: asset, options: opts,
+                                                                       exportPreset: preset) { s, _ in
                     cont.resume(returning: s)
                 }
+                key = cancel?.onCancel { PHImageManager.default().cancelImageRequest(id) }
             }
+            if let key { cancel?.remove(key) }
+            try cancel?.check()
         }
         guard let session else { throw ExportError("Photos couldn't prepare the edited version") }
         session.outputURL = url
         session.outputFileType = .mov
+        let stop = cancel?.onCancel { session.cancelExport() }
+        defer { if let stop { cancel?.remove(stop) } }
         let ticker = Task {
             while !Task.isCancelled {
                 progress(Double(session.progress))
@@ -272,6 +277,7 @@ final class Library: ObservableObject {
         }
         await session.export()
         ticker.cancel()
+        try cancel?.check()
         guard session.status == .completed else {
             throw ExportError("Rendering the edited version failed: \(session.error?.localizedDescription ?? "unknown error")")
         }

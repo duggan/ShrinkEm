@@ -29,7 +29,7 @@ extension Library {
     /// Re-encodes the current (edited, if edited) version of `asset` into `url`.
     /// Returns the source's properties so the caller can report what changed.
     /// Throws `ShrinkError` if the video is already within `settings`.
-    nonisolated static func reencode(_ asset: PHAsset, settings: ShrinkSettings, to url: URL,
+    nonisolated static func reencode(_ asset: PHAsset, settings: ShrinkSettings, to url: URL, cancel: CancelToken? = nil,
                                      progress: @escaping @Sendable (Double) -> Void) async throws -> SourceInfo {
         if isSlowMo(asset) { throw ShrinkError("Slow-motion video — skipped so the slow motion isn't lost") }
 
@@ -40,11 +40,15 @@ extension Library {
         opts.progressHandler = { p, _, _, _ in progress(0.25 * p) }   // iCloud download
         // Photos' own export sessions ignore a custom frame rate, so fetch the
         // (edited, if edited) video and run our own export session on it.
+        var key: UUID?
         let fetched: (AVAsset, AVAudioMix?)? = await withCheckedContinuation { cont in
-            PHImageManager.default().requestAVAsset(forVideo: asset, options: opts) { av, mix, _ in
+            let id = PHImageManager.default().requestAVAsset(forVideo: asset, options: opts) { av, mix, _ in
                 cont.resume(returning: av.map { ($0, mix) })
             }
+            key = cancel?.onCancel { PHImageManager.default().cancelImageRequest(id) }
         }
+        if let key { cancel?.remove(key) }
+        try cancel?.check()
         guard let (source, audioMix) = fetched,
               let session = AVAssetExportSession(asset: source, presetName: settings.preset) else {
             throw ShrinkError("Photos couldn't prepare this video for re-encoding")
@@ -79,6 +83,8 @@ extension Library {
         session.outputFileType = .mov
         session.metadata = (try? await source.load(.metadata)) ?? []
 
+        let stop = cancel?.onCancel { session.cancelExport() }
+        defer { if let stop { cancel?.remove(stop) } }
         let ticker = Task {
             while !Task.isCancelled {
                 progress(0.25 + 0.75 * Double(session.progress))
@@ -87,6 +93,10 @@ extension Library {
         }
         await session.export()
         ticker.cancel()
+        if cancel?.isCancelled == true {
+            try? FileManager.default.removeItem(at: url)
+            throw CancellationError()
+        }
         guard session.status == .completed else {
             try? FileManager.default.removeItem(at: url)
             throw ShrinkError("Re-encoding failed: \(session.error?.localizedDescription ?? "unknown error")")

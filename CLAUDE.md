@@ -19,8 +19,12 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
   rendered `.fullSizeVideo`, Move to Folder renders the edited version itself
   (`renderEdited`, `version = .current`) as `NAME (edited).mov`, or the edit (e.g. a
   slow-mo speed change) would be lost.
-- **Move to Folder** (`Library.export`) writes with `PHAssetResourceManager.writeData`,
-  checks the on-disk size equals the resource's size, sets the file dates to the
+- **Move to Folder** (`Library.export`) streams each resource with
+  `PHAssetResourceManager.requestData` (`Library.write` in `Cancel.swift`; unlike
+  `writeData` it can be cancelled mid-file), hashing the stream with SHA-256, then
+  `synchronize`s, reads the file back and compares hashes (`SLIMREEL_CORRUPT_COPIES=1`
+  damages copies before the read-back, to test that a bad copy is caught and removed).
+  It also checks the on-disk size equals the resource's size, sets the file dates to the
   capture date and permissions to 644 (Photos writes 600), and removes partial files on
   failure. File names come from `FileNaming.safeName` (adds an extension when the
   original has none, e.g. `PETKIT Video…`) and `uniqueURL` (never overwrites).
@@ -44,13 +48,22 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
     worthwhile and before anything touches Photos; if that fails the video is untouched.
 - **The queue** (`WorkQueue.swift`): Move and Shrink are `Job`s run one at a time by
   `WorkQueue`, while the window stays usable. It's its own `ObservableObject` (owned by
-  `Library.queue`) so progress ticks redraw only `ActivityBar` / `QueuePopover`, not the
+  `Library.queue`) so progress ticks redraw only the queue button and popover, not the
   table; progress callbacks are throttled to 0.5% steps. `Library.busyIDs` (published
   only when it changes) marks videos in waiting or running jobs: they can't be queued
   again or deleted. Each job re-fetches its assets before working on them (skips any
   deleted meanwhile), deletes its verified originals in one batch when it finishes (so
   Photos asks once per job), and Shrink adds the new copies with `Library.addItems`
-  instead of rescanning. While the queue runs, `ProcessInfo.beginActivity` keeps App Nap
+  instead of rescanning. Cancel (`WorkQueue.cancel`) on a running job fires its
+  `CancelToken`, which stops whatever is in flight (`requestData`, `requestAVAsset`,
+  `requestExportSession`, `AVAssetExportSession.cancelExport`); the current video is
+  left untouched (partials removed) and videos the job already finished still go
+  through to deletion, because abandoning finished shrinks would leave both versions.
+  Shrink checks the token one last time before importing. Measured: running jobs stop
+  in 0.1–0.15 s. "Stop After This Video" (`stopAfterCurrent`) is the gentler option.
+  The queue lives in the toolbar (`QueueToolbarButton`, last item, `.primaryAction`): a
+  tray, or a progress ring around the job's icon, or a spinner while Photos waits for a
+  delete confirmation; the count is in the tooltip and the Dock badge. While the queue runs, `ProcessInfo.beginActivity` keeps App Nap
   and idle sleep away; the Dock badge counts videos left; `AppDelegate` asks before
   quitting (a running Shrink would leave both versions until its job deletes). Measured
   on a 1,945-video library: no main-thread stall over 60 ms while a job runs; ~100-150 ms
@@ -73,7 +86,8 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
     doesn't flatten the rest; fixed ticks 1/5/10/20/50… GB; drag selects a month range;
     hover readout above the plot) and `DateRangeControls` (presets, pickers, clear).
   - `WorkQueue.swift`: `Job`, `WorkQueue` (runner, move and shrink workflows), test hook.
-  - `JobViews.swift`: `ActivityBar`, `QueuePopover`, `JobRow` (progress and summaries).
+  - `JobViews.swift`: `QueueToolbarButton`, `QueueIcon`, `QueuePopover`, `JobRow`.
+  - `Cancel.swift`: `CancelToken` and the cancellable, read-back-verified `Library.write`.
   - `DetailView.swift`: preview, metadata, `Thumb`, `PlayerView`.
   - `Media.swift`: thumbnails, frame rate (local only), player items.
 - `PlayerView` wraps `AVPlayerView`. Don't switch to SwiftUI's `VideoPlayer`: it
@@ -92,7 +106,7 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
   `SLIMREEL_SHRINKTEST_LOW=1` for 720p/30 and `SLIMREEL_SHRINKTEST_ARCHIVE=1` to also
   export originals. Logs to `shrinktest.log`.
 - `SLIMREEL_RENDER_DIR=<dir>`: renders the timeline with real data to PNGs (light, dark,
-  with a range) via `ImageRenderer`, and the activity bar and queue popover with sample
+  with a range) via `ImageRenderer`, and the queue popover and toolbar icon states with sample
   jobs via an offscreen `NSHostingView` (`ImageRenderer` draws AppKit-backed controls,
   such as buttons, progress bars and scroll views, as yellow placeholders). Slow on a big
   library; give it a few minutes.

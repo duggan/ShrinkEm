@@ -67,9 +67,12 @@ Macs.
 ### The queue
 
 Shrink and Move to Folder jobs go into a queue and run in the background, one after
-another, so you can keep reviewing while they work. The bar at the bottom of the window
-shows what's running; **Queue** lists every job, lets you cancel one that's waiting or
-stop one after its current video, and keeps each job's summary until you clear it.
+another, so you can keep reviewing while they work. The queue button at the right of
+the toolbar shows a progress ring while a job runs, and opens the list
+of jobs. From there you can cancel a waiting job, stop a running one after its current
+video, or cancel it straight away: the video in progress is left as it was (partial
+files are removed), and any videos the job already finished are completed as usual.
+Each job's summary stays until you clear it.
 Videos in the queue are marked with a clock and can't be queued twice or deleted until
 their job finishes. When a job finishes, Photos asks you to confirm deleting its
 originals, as before. Closing the window doesn't stop the queue (the Dock icon counts
@@ -100,8 +103,10 @@ total and count; drag to select a range; the list and totals follow.
 Nothing is removed until its copy has been checked byte for byte, and Photos asks you
 before anything is deleted.
 
-- **Move to Folder** compares every saved file's size with what Photos reports. If a
-  copy fails or doesn't match, that video stays in Photos and the summary tells you why.
+- **Move to Folder** reads every saved file back and checks it byte for byte (SHA-256)
+  against what Photos sent, and that its size matches what Photos reports. If a copy
+  fails or doesn't match, it's removed, the video stays in Photos, and the summary
+  tells you why.
 - **Shrink** checks the new copy plays and runs as long as the original before adding
   it, and adds it before removing anything. If you cancel Photos' delete prompt, you're
   left with both versions, not neither.

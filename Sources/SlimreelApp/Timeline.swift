@@ -179,7 +179,7 @@ extension Library {
         exit(0)
     }
 
-    /// Renders the activity bar and the queue popover with sample jobs in every state.
+    /// Renders the queue popover and the toolbar icon with sample jobs in every state.
     func renderQueueSnapshots(_ dir: URL) {
         let picks = Array(items.sorted { $0.bytes > $1.bytes }.prefix(9))
         guard picks.count == 9 else { return }
@@ -199,8 +199,9 @@ extension Library {
         q.previewJobs([done, partial, running, waiting])
         // NSHostingView, not ImageRenderer: ImageRenderer can't draw AppKit-backed
         // controls (buttons, progress bars, scroll views).
-        func render<V: View>(_ name: String, _ v: V, width: CGFloat) {
+        func render<V: View>(_ name: String, _ v: V, width: CGFloat, dark: Bool? = nil) {
             let host = NSHostingView(rootView: v.frame(width: width).background(Color(nsColor: .windowBackgroundColor)))
+            if let dark { host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua) }
             let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: width, height: 100),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.contentView = host
@@ -217,9 +218,28 @@ extension Library {
             }
             window.orderOut(nil)
         }
-        render("activity-bar", ActivityBar(queue: q).tint(Brand.mintDeep), width: 1150)
         render("queue-popover", QueuePopover(queue: q).tint(Brand.mintDeep), width: 440)
-        q.previewJobs([done])
-        render("activity-bar-done", ActivityBar(queue: q).tint(Brand.mintDeep), width: 1150)
+
+        // The toolbar icon in each state, at 3×, light and dark.
+        var deleting = running; deleting.state = .deleting
+        var moving = waiting; moving.state = .running; moving.index = 1; moving.name = picks[4].filename
+        moving.currentBytes = picks[4].bytes; moving.fileProgress = 0.8
+        let states: [(String, [Job])] = [("Empty", []), ("Shrinking", [running, waiting]), ("Moving", [moving]),
+                                         ("Confirm", [deleting]), ("Done", [done]), ("Failed", [partial])]
+        let icons = states.map { name, jobs -> (String, WorkQueue) in
+            let q = WorkQueue(library: self); q.previewJobs(jobs); return (name, q)
+        }
+        for scheme in [ColorScheme.light, .dark] {
+            let strip = HStack(spacing: 28) {
+                ForEach(icons.indices, id: \.self) { i in
+                    VStack(spacing: 10) {
+                        QueueIcon(queue: icons[i].1).padding(10).scaleEffect(3).frame(width: 90, height: 90)
+                        Text(icons[i].0).font(.caption)
+                    }
+                }
+            }
+            .padding(20).environment(\.colorScheme, scheme).tint(Brand.mintDeep)
+            render("queue-icons-\(scheme == .dark ? "dark" : "light")", strip, width: 760, dark: scheme == .dark)
+        }
     }
 }

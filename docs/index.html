@@ -404,7 +404,7 @@ footer :focus-visible { outline-color: #fff; box-shadow: none; }
       </article>
       <article class="card sticker move">
         <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9.5A1.5 1.5 0 0 0 19.5 8H12L10 5H4.5A1.5 1.5 0 0 0 3 6.5Z"/></svg><h3>Move to Folder</h3></div>
-        <p>Saves the original, and the edited version if there is one, to a folder you choose. A network drive or NAS works too. Each copy's size is checked byte for byte, and free space is checked first. Then the video is removed from Photos.</p>
+        <p>Saves the original, and the edited version if there is one, to a folder you choose. A network drive or NAS works too. Free space is checked first, and each copy is read back and checked byte for byte against what Photos sent. Then the video is removed from Photos.</p>
       </article>
       <article class="card sticker shrink">
         <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4l-6 6M14 5.5V10h4.5M4 20l6-6M10 18.5V14H5.5"/></svg><h3>Shrink</h3></div>
@@ -512,7 +512,7 @@ footer :focus-visible { outline-color: #fff; box-shadow: none; }
       </details>
       <details class="sticker">
         <summary>Can I move videos to a NAS?</summary>
-        <p>Yes. Move to Folder works with network drives, including SMB shares. Slimreel checks there's enough free space before it starts, and checks each copy's size byte for byte before the video is removed from Photos.</p>
+        <p>Yes. Move to Folder works with network drives, including SMB shares. Slimreel checks there's enough free space before it starts, and reads each copy back to check it byte for byte before the video is removed from Photos.</p>
       </details>
       <details class="sticker">
         <summary>Which Macs does it run on?</summary>

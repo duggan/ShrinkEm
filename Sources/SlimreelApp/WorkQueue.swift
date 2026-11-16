@@ -32,7 +32,8 @@ struct Job: Identifiable {
     var doneOriginalBytes: Int64 = 0
     var newBytes: Int64 = 0          // shrink: size of the replacement copies
     var deleted = false
-    var stopRequested = false
+    var stopRequested = false        // finish the current video, then stop
+    var cancelRequested = false      // stop now; the current video is left untouched
     var failures: [String] = []
 
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
@@ -63,6 +64,7 @@ final class WorkQueue: ObservableObject {
     @Published private(set) var jobs: [Job] = []
     private unowned let library: Library
     private var runner: Task<Void, Never>?
+    private var tokens: [UUID: CancelToken] = [:]
 
     init(library: Library) { self.library = library }
 
@@ -97,15 +99,25 @@ final class WorkQueue: ObservableObject {
         return items.count
     }
 
+    /// A waiting job is dropped. A running one stops now: the video in progress is left
+    /// as it was (partial files removed), and the videos it already finished are
+    /// completed, so Photos asks before deleting their originals. (Abandoning finished
+    /// shrinks would leave both versions in Photos.)
     func cancel(_ id: UUID) {
         mutate(id) { job in
             switch job.state {
             case .waiting: job.state = .cancelled
-            case .running: job.stopRequested = true
+            case .running: job.cancelRequested = true
             default: break
             }
         }
+        tokens[id]?.cancel()
         refreshBusy()
+    }
+
+    /// Lets the video in progress finish, then stops the job.
+    func stopAfterCurrent(_ id: UUID) {
+        mutate(id) { if $0.state == .running { $0.stopRequested = true } }
     }
 
     func clearFinished() {
@@ -132,11 +144,14 @@ final class WorkQueue: ObservableObject {
 
         while let next = jobs.first(where: { $0.state == .waiting }) {
             mutate(next.id) { $0.state = .running }
+            let token = CancelToken()
+            tokens[next.id] = token
             switch next.kind {
-            case .move(let folder): await runMove(next.id, folder: folder)
-            case .shrink(let settings): await runShrink(next.id, settings: settings)
+            case .move(let folder): await runMove(next.id, folder: folder, cancel: token)
+            case .shrink(let settings): await runShrink(next.id, settings: settings, cancel: token)
             }
-            mutate(next.id) { $0.state = .finished }
+            tokens[next.id] = nil
+            mutate(next.id) { $0.state = $0.cancelRequested && $0.done == 0 ? .cancelled : .finished }
             refreshBusy()
             updateDockBadge()
         }
@@ -178,21 +193,28 @@ final class WorkQueue: ObservableObject {
         }
     }
 
-    private func stopRequested(_ id: UUID) -> Bool {
-        jobs.first { $0.id == id }?.stopRequested ?? true
+    private func shouldStop(_ id: UUID) -> Bool {
+        guard let job = jobs.first(where: { $0.id == id }) else { return true }
+        return job.stopRequested || job.cancelRequested
     }
 
-    private func runMove(_ id: UUID, folder: URL) async {
+    private func isCancellation(_ error: Error, _ token: CancelToken) -> Bool {
+        token.isCancelled || error is CancellationError
+    }
+
+    private func runMove(_ id: UUID, folder: URL, cancel: CancelToken) async {
         guard let job = jobs.first(where: { $0.id == id }) else { return }
         var exported = Set<String>()
         for (i, item) in job.items.enumerated() {
-            if stopRequested(id) { break }
+            if shouldStop(id) { break }
             begin(id, i, item)
             do {
                 guard let asset = liveAsset(item) else { throw Library.ExportError("No longer in Photos") }
-                try await Library.export(asset, to: folder, progress: reporter(id))
+                try await Library.export(asset, to: folder, cancel: cancel, progress: reporter(id))
                 exported.insert(item.id)
                 mutate(id) { $0.done += 1; $0.doneOriginalBytes += item.bytes }
+            } catch where isCancellation(error, cancel) {
+                break   // export already removed this video's partial files
             } catch {
                 mutate(id) { $0.failures.append("\(item.filename): \(error.localizedDescription)") }
             }
@@ -207,19 +229,19 @@ final class WorkQueue: ObservableObject {
         }
     }
 
-    private func runShrink(_ id: UUID, settings: ShrinkSettings) async {
+    private func runShrink(_ id: UUID, settings: ShrinkSettings, cancel: CancelToken) async {
         guard let job = jobs.first(where: { $0.id == id }) else { return }
         let tmp = Library.shrinkTempDir()
         let encodeShare = settings.archiveFolder == nil ? 1.0 : 0.5
         var replaced: [String: String] = [:]   // original ID → new ID
 
         for (i, item) in job.items.enumerated() {
-            if stopRequested(id) { break }
+            if shouldStop(id) { break }
             begin(id, i, item)
             let url = tmp.appendingPathComponent(UUID().uuidString + ".mov")
             do {
                 guard let asset = liveAsset(item) else { throw Library.ShrinkError("No longer in Photos") }
-                _ = try await Library.reencode(asset, settings: settings, to: url,
+                _ = try await Library.reencode(asset, settings: settings, to: url, cancel: cancel,
                                                progress: reporter(id, scale: encodeShare))
                 let newSize = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
                 if !ShrinkSettings.worthReplacing(original: item.bytes, copy: newSize) {
@@ -228,8 +250,11 @@ final class WorkQueue: ObservableObject {
                 // Archive the full-quality original (and any edited version) before
                 // touching Photos. If that fails, the video is left exactly as it was.
                 if let folder = settings.archiveFolder {
-                    try await Library.export(asset, to: folder, progress: reporter(id, scale: 0.5, offset: 0.5))
+                    try await Library.export(asset, to: folder, cancel: cancel,
+                                             progress: reporter(id, scale: 0.5, offset: 0.5))
                 }
+                // Last chance to cancel: from here the copy goes into Photos.
+                try cancel.check()
                 if !job.dryRun {
                     let base = (item.filename as NSString).deletingPathExtension
                     let newID = try await Library.importReplacement(for: asset, fileURL: url,
@@ -238,6 +263,9 @@ final class WorkQueue: ObservableObject {
                     library.addItems(ids: [newID])   // show the new copy straight away
                 }
                 mutate(id) { $0.done += 1; $0.doneOriginalBytes += item.bytes; $0.newBytes += newSize }
+            } catch where isCancellation(error, cancel) {
+                try? FileManager.default.removeItem(at: url)
+                break
             } catch {
                 mutate(id) { $0.failures.append("\(item.filename): \(error.localizedDescription)") }
             }
@@ -308,7 +336,7 @@ extension Library {
         let fourK = items.filter { min($0.width, $0.height) >= 2160 && $0.duration > 3 && !Library.isSlowMo($0.asset) }
             .sorted { $0.bytes < $1.bytes }
         let wantBig = ProcessInfo.processInfo.environment["SLIMREEL_QUEUETEST_BIG"] != nil
-        guard small.count >= 3, let big = wantBig ? fourK.first(where: { $0.bytes > 80_000_000 }) : fourK.first
+        guard small.count >= 4, let big = wantBig ? fourK.first(where: { $0.bytes > 80_000_000 }) : fourK.first
         else { note("not enough videos"); return }
         let moveIDs: Set<String> = [small[0].id, small[1].id]
 
@@ -329,8 +357,44 @@ extension Library {
             if states != seen { note("states: \(states)"); seen = states }
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
-        timer.invalidate()
         note("states: \(q.jobs.map { "\($0.state)" }.joined(separator: ","))")
+
+        // Cancelling running jobs: how fast they stop, and what they leave behind.
+        func files(_ dir: URL) -> [String] { ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted() }
+        func waitUntil(_ limit: Double, _ cond: () -> Bool) async {
+            let start = Date()
+            while !cond() && Date().timeIntervalSince(start) < limit { try? await Task.sleep(nanoseconds: 50_000_000) }
+        }
+        func cancelTest(_ label: String, _ kind: Job.Kind, _ ids: Set<String>, folder: URL?,
+                        when: @escaping (Job) -> Bool) async {
+            let tmpBefore = files(Library.shrinkTempDir())
+            q.enqueue(kind, ids: ids, dryRun: true)
+            guard let id = q.jobs.last?.id else { return }
+            await waitUntil(60) { q.jobs.first { $0.id == id }.map(when) ?? true }
+            let at = q.jobs.first { $0.id == id }!
+            note("\(label): cancelling at video \(at.index), \(Int(at.fileProgress * 100))% of it")
+            let t = Date()
+            q.cancel(id)
+            await waitUntil(30) { !(q.jobs.first { $0.id == id }?.isActive ?? false) }
+            let job = q.jobs.first { $0.id == id }!
+            note(String(format: "\(label): stopped in %.2fs, state \(job.state), done \(job.done), failures \(job.failures.count)", Date().timeIntervalSince(t)))
+            if let folder { note("\(label): folder now \(files(folder))") }
+            note("\(label): temp files left \(Set(files(Library.shrinkTempDir())).subtracting(tmpBefore).count)")
+        }
+        let large = items.filter { $0.bytes > 150_000_000 && $0.bytes < 700_000_000 && $0.duration > 3 }.min { $0.bytes < $1.bytes }
+        if let large {
+            let f1 = dir.appendingPathComponent("cancel-move")
+            try? FileManager.default.createDirectory(at: f1, withIntermediateDirectories: true)
+            await cancelTest("move \(fmtBytes(large.bytes))", .move(folder: f1), [large.id], folder: f1) { $0.state == .running && $0.fileProgress > 0.05 }
+            let f3 = dir.appendingPathComponent("cancel-second")
+            try? FileManager.default.createDirectory(at: f3, withIntermediateDirectories: true)
+            // Biggest first, so the large video goes first; cancel during the small one.
+            let tiny = small[3]
+            await cancelTest("move two, cancel on second", .move(folder: f3), [large.id, tiny.id], folder: f3) { $0.index == 2 && $0.state == .running }
+        } else { note("no 150–700 MB video for the move cancel test") }
+        await cancelTest("shrink \(fmtBytes(big.bytes))", .shrink(ShrinkSettings(maxHeight: 1080, maxFPS: 60)), [big.id], folder: nil) { $0.state == .running && $0.fileProgress > 0.3 }
+        note("busy at end: \(busyIDs.count) (expect 0)")
+        timer.invalidate()
         for job in q.jobs {
             note("\(job.title): done \(job.done)/\(job.items.count), failures \(job.failures), headline: \(JobRow.headline(job))")
         }

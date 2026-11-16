@@ -1,58 +1,70 @@
-// The activity bar at the bottom of the window and the queue popover it opens.
+// The queue's toolbar button and the popover it opens.
 // Both observe WorkQueue directly, so progress ticks redraw only these views.
 
 import SwiftUI
 import SlimreelKit
 
-struct ActivityBar: View {
+/// The queue's toolbar button: a tray icon with a progress ring while a job runs (a
+/// spinner while Photos waits for a delete confirmation). The Dock badge and the
+/// tooltip carry the count of videos left.
+struct QueueToolbarButton: View {
     @ObservedObject var queue: WorkQueue
     @State private var showQueue = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            status
-            Spacer(minLength: 8)
-            if !queue.isWorking && !queue.jobs.isEmpty {
-                Button("Clear") { queue.clearFinished() }
-                    .buttonStyle(.borderless)
-            }
-            Button {
-                showQueue.toggle()
-            } label: {
-                Label(queue.waitingCount > 0 ? "Queue (\(queue.waitingCount) waiting)" : "Queue",
-                      systemImage: "list.bullet.rectangle")
-            }
-            .popover(isPresented: $showQueue, arrowEdge: .top) {
-                QueuePopover(queue: queue)
+        Button {
+            showQueue.toggle()
+        } label: {
+            QueueIcon(queue: queue)
+        }
+        .help(QueueIcon.status(queue))
+        .accessibilityLabel("Queue")
+        .accessibilityValue(QueueIcon.status(queue))
+        .popover(isPresented: $showQueue, arrowEdge: .bottom) {
+            QueuePopover(queue: queue)
+        }
+    }
+}
+
+struct QueueIcon: View {
+    @ObservedObject var queue: WorkQueue
+
+    var body: some View {
+        let job = queue.current
+        ZStack {
+            if let job {
+                Circle().stroke(.secondary.opacity(0.25), lineWidth: 2.5)
+                if job.state == .deleting {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Circle().trim(from: 0, to: max(0.03, job.overall))
+                        .stroke(Brand.mintDeep, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.25), value: job.overall)
+                    Image(systemName: job.isShrink ? "arrow.down.right.and.arrow.up.left" : "folder")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            } else {
+                Image(systemName: queue.jobs.isEmpty ? "tray" : "tray.full")
+                    .font(.system(size: 14))
+                if let last = queue.jobs.last(where: { $0.state == .finished }), !last.failures.isEmpty {
+                    Circle().fill(.orange).frame(width: 7, height: 7).offset(x: 8, y: -7)
+                }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.bar)
+        .frame(width: 20, height: 20)
     }
 
-    @ViewBuilder var status: some View {
+    /// The tooltip and accessibility value: what the queue is doing.
+    static func status(_ queue: WorkQueue) -> String {
         if let job = queue.current {
-            if job.state == .deleting {
-                ProgressView().controlSize(.small)
-                Text("Confirm the deletion in the Photos dialog.")
-            } else {
-                ProgressView().controlSize(.small)
-                Text("\(job.isShrink ? "Shrinking" : "Moving") \(job.index) of \(job.items.count)")
-                    .fontWeight(.medium).monospacedDigit()
-                Text(job.name).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    .frame(maxWidth: 220, alignment: .leading)
-                ProgressView(value: job.overall).frame(width: 160)
-                    .help("\(fmtBytes(job.doneBytes)) of \(fmtBytes(job.totalBytes))")
-            }
-        } else if let last = queue.jobs.last(where: { $0.state == .finished }) {
-            Image(systemName: last.failures.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(last.failures.isEmpty ? Color.green : Color.orange)
-            Text(JobRow.headline(last)).fontWeight(.medium)
-        } else {
-            Image(systemName: "checkmark.circle").foregroundStyle(.secondary)
-            Text("Nothing in the queue.").foregroundStyle(.secondary)
+            if job.state == .deleting { return "Waiting for you to confirm the deletion in Photos" }
+            var s = "\(job.isShrink ? "Shrinking" : "Moving") \(job.index) of \(job.items.count): \(job.name) · \(Int(job.overall * 100))%"
+            if queue.waitingCount > 0 { s += " · \(queue.waitingCount) more job\(queue.waitingCount == 1 ? "" : "s") waiting" }
+            return s
         }
+        if let last = queue.jobs.last(where: { $0.state == .finished }) { return JobRow.headline(last) }
+        return "Queue: nothing waiting"
     }
 }
 
@@ -116,10 +128,19 @@ struct JobRow: View {
                 }
                 HStack {
                     Spacer()
-                    Button(job.stopRequested ? "Stopping after this video…" : "Stop After This Video") {
-                        queue.cancel(job.id)
+                    if job.cancelRequested {
+                        Text("Cancelling…").foregroundStyle(.secondary)
+                    } else {
+                        Button(job.stopRequested ? "Stopping after this video…" : "Stop After This Video") {
+                            queue.stopAfterCurrent(job.id)
+                        }
+                        .disabled(job.stopRequested)
+                        .help("Finish the video in progress, then stop.")
+                        Button("Cancel") { queue.cancel(job.id) }
+                            .help(job.done > 0
+                                  ? "Stop now. The \(job.done) video\(job.done == 1 ? "" : "s") already done will still be finished, and Photos asks before deleting \(job.done == 1 ? "its original" : "their originals")."
+                                  : "Stop now. Nothing has been changed in Photos yet.")
                     }
-                    .disabled(job.stopRequested)
                 }
             case .deleting:
                 HStack {
@@ -134,7 +155,7 @@ struct JobRow: View {
         }
     }
 
-    /// One line for the activity bar.
+    /// One line for the tooltip and summaries.
     static func headline(_ job: Job) -> String {
         let saved = job.doneOriginalBytes - job.newBytes
         if job.state == .cancelled { return "Cancelled. Nothing was changed." }
@@ -174,7 +195,10 @@ struct JobRow: View {
         } else {
             Label(Self.headline(job), systemImage: "xmark.circle.fill").foregroundStyle(.red)
         }
-        if job.stopRequested && job.index < job.items.count {
+        if job.cancelRequested {
+            Text("Cancelled during \(job.name), which was left as it was\(job.index < job.items.count ? ", along with the videos after it" : "").")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        } else if job.stopRequested && job.index < job.items.count {
             Text("Stopped early. The videos after \(job.name) weren't touched.").font(.callout).foregroundStyle(.secondary)
         }
         if !job.failures.isEmpty {

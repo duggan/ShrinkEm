@@ -64,8 +64,6 @@ struct ContentView: View {
                 Text(moveMessage)
             }
             .onChange(of: lib.selectionInvalidated) { _, ids in selection.subtract(ids) }
-            // In the stack, not a safe-area inset: HSplitView ignores insets.
-            ActivityBarSlot(queue: lib.queue)
         }
         .sheet(isPresented: Binding(get: { pendingShrink != nil }, set: { if !$0 { pendingShrink = nil } })) {
             ShrinkOptionsSheet(ids: pendingShrink ?? []) { settings in
@@ -271,19 +269,11 @@ struct ContentView: View {
                 .help("Move selected to Recently Deleted (⌫)")
                 .disabled(selection.isEmpty)
         }
-    }
-}
-
-/// The activity bar, shown once anything has been queued. It observes the queue so
-/// the rest of the window doesn't redraw on every progress tick.
-struct ActivityBarSlot: View {
-    @ObservedObject var queue: WorkQueue
-    var body: some View {
-        if !queue.jobs.isEmpty {
-            VStack(spacing: 0) {
-                Divider()
-                ActivityBar(queue: queue)
-            }
+        // Last, so it sits at the right-hand end. It observes the queue itself, so
+        // progress doesn't redraw the window.
+        ToolbarItem(placement: .primaryAction) {
+            QueueToolbarButton(queue: lib.queue)
         }
     }
 }
+
