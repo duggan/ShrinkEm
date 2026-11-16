@@ -1,9 +1,18 @@
-# Slimreel
+# ShrinkEm
 
-Slimreel is a macOS app for people whose iCloud storage is full of videos. It lists the
+ShrinkEm is a macOS app for people whose iCloud storage is full of videos. It lists the
 Photos library's videos biggest first and lets you Keep, Delete, Move to Folder, or
 Shrink each one. Brand, voice and artwork are specified in `docs/BRAND.md`: calm and
-exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize".
+exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize". It's
+a Hyperspecific app (the studio's spec lives outside this repo).
+
+**It was called Slimreel in 1.0.0** (bundle ID `ie.duggan.Slimreel`). It was renamed the
+same day because an iOS app called Slimreel does the same job; `docs/BRAND.md` §1 has
+the story. The bundle ID is now `dev.hyperspecific.ShrinkEm`. `SettingsMigration` in
+`App.swift` copies the Keep marks and the six settings (`minMB`, `hideKept`,
+`moveFolder`, `shrinkHeight`, `shrinkFPS`, `shrinkArchive`) from the old domain once,
+never overwriting a value the new app already has. Photos access can't move; macOS
+asks again. Written `ShrinkEm` everywhere; "Shrink 'Em" is only for speech.
 
 ## Design rules
 
@@ -22,7 +31,7 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
 - **Move to Folder** (`Library.export`) streams each resource with
   `PHAssetResourceManager.requestData` (`Library.write` in `Cancel.swift`; unlike
   `writeData` it can be cancelled mid-file), hashing the stream with SHA-256, then
-  `synchronize`s, reads the file back and compares hashes (`SLIMREEL_CORRUPT_COPIES=1`
+  `synchronize`s, reads the file back and compares hashes (`SHRINKEM_CORRUPT_COPIES=1`
   damages copies before the read-back, to test that a bad copy is caught and removed).
   It also checks the on-disk size equals the resource's size, sets the file dates to the
   capture date and permissions to 644 (Photos writes 600), and removes partial files on
@@ -30,7 +39,7 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
   original has none, e.g. `PETKIT Video…`) and `uniqueURL` (never overwrites).
 - **Free space** (`Library.freeSpace`): `volumeAvailableCapacityForImportantUsage` is 0
   on SMB/network volumes; fall back to `volumeAvailableCapacity`.
-- **Shrink** (`Shrink.swift`, rules in `SlimreelKit/ShrinkRules.swift`): Photos can't
+- **Shrink** (`Shrink.swift`, rules in `ShrinkEmKit/ShrinkRules.swift`): Photos can't
   replace a video's file in place (an edit keeps the original too and uses more
   space), so Shrink re-encodes, adds a new asset with the same creation date, location,
   favourite, hidden state and user albums (`importReplacement`), then deletes the
@@ -73,10 +82,10 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
 
 ## Layout
 
-- `Sources/SlimreelKit/`: pure logic with unit tests: `Formatting` (`fmtBytes`,
+- `Sources/ShrinkEmKit/`: pure logic with unit tests: `Formatting` (`fmtBytes`,
   `fmtDur`), `FileNaming`, `DateRange` and `MonthBucket`, `ShrinkRules`
   (`ShrinkSettings`, `plan`, `worthReplacing`, presets).
-- `Sources/SlimreelApp/`:
+- `Sources/ShrinkEmApp/`:
   - `App.swift`: the app and `Brand` colours (accent is Mint deep `#1FA588`).
   - `Library.swift`: `VideoItem`, scanning, delete, album, Keep, Move to Folder.
   - `Shrink.swift`: re-encode, import, `ShrinkOptionsSheet`.
@@ -99,33 +108,33 @@ exact, lightly warm; no jokes near deletion; never "clean", "junk" or "optimize"
 
 ## Developer hooks (environment variables, read-only, quit when done)
 
-- `SLIMREEL_SELFTEST_DIR=<dir>`: exports the smallest plain and edited videos twice
+- `SHRINKEM_SELFTEST_DIR=<dir>`: exports the smallest plain and edited videos twice
   (checks naming) into `<dir>`, logs to `selftest.log`. Deletes nothing.
-- `SLIMREEL_SHRINKTEST_DIR=<dir>`: re-encodes a few 4K videos (landscape, portrait,
+- `SHRINKEM_SHRINKTEST_DIR=<dir>`: re-encodes a few 4K videos (landscape, portrait,
   edited, high bitrate) into `<dir>` without touching the library; add
-  `SLIMREEL_SHRINKTEST_LOW=1` for 720p/30 and `SLIMREEL_SHRINKTEST_ARCHIVE=1` to also
+  `SHRINKEM_SHRINKTEST_LOW=1` for 720p/30 and `SHRINKEM_SHRINKTEST_ARCHIVE=1` to also
   export originals. Logs to `shrinktest.log`.
-- `SLIMREEL_RENDER_DIR=<dir>`: renders the timeline with real data to PNGs (light, dark,
+- `SHRINKEM_RENDER_DIR=<dir>`: renders the timeline with real data to PNGs (light, dark,
   with a range) via `ImageRenderer`, and the queue popover and toolbar icon states with sample
   jobs via an offscreen `NSHostingView` (`ImageRenderer` draws AppKit-backed controls,
   such as buttons, progress bars and scroll views, as yellow placeholders). Slow on a big
   library; give it a few minutes.
-- `SLIMREEL_QUEUETEST_DIR=<dir>`: queues dry-run jobs on real videos (files written to
+- `SHRINKEM_QUEUETEST_DIR=<dir>`: queues dry-run jobs on real videos (files written to
   `<dir>`, nothing imported or deleted), checks ordering, duplicate and cancel rules and
-  `busyIDs`, and logs the longest main-thread stall. Add `SLIMREEL_QUEUETEST_BIG=1` for a
+  `busyIDs`, and logs the longest main-thread stall. Add `SHRINKEM_QUEUETEST_BIG=1` for a
   longer shrink (a ~100 MB 4K video).
 
-Run with `open -n --env NAME=value build/Slimreel.app`.
+Run with `open -n --env NAME=value build/ShrinkEm.app`.
 
 ## Building and releasing
 
 - `make run`, `test`, `icons`, `dmg`, `release` (see the Makefile). Universal, Developer
-  ID, hardened runtime, not sandboxed, bundle ID `ie.duggan.Slimreel`, notary profile
-  `slimreel`.
+  ID, hardened runtime, not sandboxed, bundle ID `dev.hyperspecific.ShrinkEm`, notary profile
+  `shrinkem`.
 - `.github/workflows/release.yml` (tags `v*`, `test/**` branches, manual) and `ci.yml`,
   as in Subya and NanoNeo. Secrets and steps: `docs/RELEASING.md`. Bump
   `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/App-Info.plist`
   before tagging.
 - Artwork: `Resources/art/make_icons.py` and `make_banner.py` (see their docstrings);
-  `make icons` renders `Slimreel.icns` and the DMG background. Commit the outputs.
+  `make icons` renders `ShrinkEm.icns` and the DMG background. Commit the outputs.
 - Website: `docs/index.html` on GitHub Pages.

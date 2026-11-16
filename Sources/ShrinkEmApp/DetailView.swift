@@ -4,7 +4,7 @@ import SwiftUI
 import Photos
 import AVKit
 import UniformTypeIdentifiers
-import SlimreelKit
+import ShrinkEmKit
 
 struct Thumb: View {
     let asset: PHAsset

@@ -74,7 +74,7 @@ extension Library {
         let sent = try sink.close()
         try cancel?.check()
         // Test hook only: damage the copy so the read-back check has something to catch.
-        if ProcessInfo.processInfo.environment["SLIMREEL_CORRUPT_COPIES"] != nil,
+        if ProcessInfo.processInfo.environment["SHRINKEM_CORRUPT_COPIES"] != nil,
            let h = try? FileHandle(forUpdating: url) {
             try? h.seek(toOffset: 1000); try? h.write(contentsOf: Data([0xFF, 0x00])); try? h.close()
         }

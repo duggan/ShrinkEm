@@ -1,4 +1,4 @@
-"""Generates Slimreel's artwork as SVG. `make icons` renders these into the files in
+"""Generates ShrinkEm's artwork as SVG. `make icons` renders these into the files in
 Resources/.
 
 The icon is Snug: a little video clip with sprocket notches, dot eyes, cheeks and a
@@ -130,7 +130,7 @@ def dmg_background():
     <path d="M372,197 L392,215 L372,233"/>
   </g>
   <text x="330" y="335" text-anchor="middle" font-family="-apple-system, Helvetica Neue, Helvetica, Arial, sans-serif"
-        font-size="17" fill="{INK}" fill-opacity="0.7">Drag Slimreel to your Applications folder</text>
+        font-size="17" fill="{INK}" fill-opacity="0.7">Drag ShrinkEm to your Applications folder</text>
 </svg>
 '''
 

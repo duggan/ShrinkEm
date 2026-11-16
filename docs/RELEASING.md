@@ -1,4 +1,4 @@
-# Releasing Slimreel
+# Releasing ShrinkEm
 
 Releases are built, signed, notarized and published by
 `.github/workflows/release.yml`, which runs `make release` on a GitHub macOS runner.
@@ -31,7 +31,7 @@ If you kept the .p12 and password you made for NanoNeo or Subya, you can reuse t
 
 1. Sign in at [account.apple.com](https://account.apple.com) and open
    **Sign-In and Security › App-Specific Passwords**.
-2. Add one with a name like `Slimreel GitHub notarization`, and copy the password it
+2. Add one with a name like `ShrinkEm GitHub notarization`, and copy the password it
    shows (`xxxx-xxxx-xxxx-xxxx`). That's `NOTARY_PASSWORD`.
 
 A separate password per project means you can revoke one without breaking the others.
@@ -42,11 +42,11 @@ Run these yourself in Terminal. `gh secret set` without `--body` asks for the va
 at a hidden prompt, so it never lands in your shell history.
 
 ```sh
-base64 -i ~/Desktop/developer-id.p12 | gh secret set DEVELOPER_ID_CERT_P12 --repo duggan/Slimreel
-gh secret set DEVELOPER_ID_CERT_PASSWORD --repo duggan/Slimreel
-gh secret set NOTARY_APPLE_ID --repo duggan/Slimreel
-gh secret set NOTARY_PASSWORD --repo duggan/Slimreel
-gh secret list --repo duggan/Slimreel
+base64 -i ~/Desktop/developer-id.p12 | gh secret set DEVELOPER_ID_CERT_P12 --repo duggan/ShrinkEm
+gh secret set DEVELOPER_ID_CERT_PASSWORD --repo duggan/ShrinkEm
+gh secret set NOTARY_APPLE_ID --repo duggan/ShrinkEm
+gh secret set NOTARY_PASSWORD --repo duggan/ShrinkEm
+gh secret list --repo duggan/ShrinkEm
 ```
 
 Then delete the exported .p12 (`*.p12` is in `.gitignore`, but don't leave it lying
@@ -54,8 +54,8 @@ around).
 
 ## 4. Try it
 
-- **Dry run:** `gh workflow run release.yml --repo duggan/Slimreel`, then download the
-  `Slimreel-dmg` artifact from the run. Nothing is published.
+- **Dry run:** `gh workflow run release.yml --repo duggan/ShrinkEm`, then download the
+  `ShrinkEm-dmg` artifact from the run. Nothing is published.
 - **Test pre-release:** push a branch named `test/<anything>`.
 - **Release:** bump `CFBundleShortVersionString` and `CFBundleVersion` in
   `Resources/App-Info.plist`, commit, then `git tag v1.2.3 && git push origin v1.2.3`.
@@ -68,4 +68,4 @@ unavailable.
 ## Releasing from your Mac instead
 
 `make release` does the same locally. Run `make notary-setup` once to store the
-`slimreel` notarization profile in your keychain.
+`shrinkem` notarization profile in your keychain.

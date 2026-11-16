@@ -4,7 +4,7 @@ import SwiftUI
 import Photos
 import AVKit
 import UniformTypeIdentifiers
-import SlimreelKit
+import ShrinkEmKit
 
 // MARK: - Model
 
@@ -36,14 +36,14 @@ final class Library: ObservableObject {
     func start() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         guard status == .authorized || status == .limited else {
-            message = "Slimreel needs access to your Photos library. Enable it in System Settings → Privacy & Security → Photos, then relaunch."
+            message = "ShrinkEm needs access to your Photos library. Enable it in System Settings → Privacy & Security → Photos, then relaunch."
             return
         }
         await reload()
-        if let dir = ProcessInfo.processInfo.environment["SLIMREEL_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SLIMREEL_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SLIMREEL_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SLIMREEL_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir)) }
     }
 
     /// Read-only self-test: exports the smallest video (twice, to check name
@@ -295,7 +295,7 @@ final class Library: ObservableObject {
         FileNaming.uniqueURL(in: folder, name: name)
     }
 
-    static let reviewAlbum = "Slimreel – Review"
+    static let reviewAlbum = "ShrinkEm – Review"
 
     func addToReviewAlbum(_ ids: Set<String>) async {
         let targets = assets(ids)

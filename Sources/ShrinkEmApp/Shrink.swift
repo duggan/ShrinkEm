@@ -7,7 +7,7 @@ import Foundation
 import SwiftUI
 import Photos
 import AVFoundation
-import SlimreelKit
+import ShrinkEmKit
 
 struct SourceInfo {
     let width: Int, height: Int   // oriented
@@ -144,7 +144,7 @@ extension Library {
     }
 
     nonisolated static func shrinkTempDir() -> URL {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Slimreel-shrink", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ShrinkEm-shrink", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -164,10 +164,10 @@ extension Library {
             let url = dir.appendingPathComponent("test\(i)-\((item.filename as NSString).deletingPathExtension).mov")
             let t0 = Date()
             do {
-                let low = ProcessInfo.processInfo.environment["SLIMREEL_SHRINKTEST_LOW"] != nil
+                let low = ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_LOW"] != nil
                 let info = try await Library.reencode(item.asset, settings: ShrinkSettings(maxHeight: low ? 720 : 1080, maxFPS: low ? 30 : 60), to: url) { _ in }
                 let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
-                if ProcessInfo.processInfo.environment["SLIMREEL_SHRINKTEST_ARCHIVE"] != nil {
+                if ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_ARCHIVE"] != nil {
                     let arch = dir.appendingPathComponent("archive"); try? FileManager.default.createDirectory(at: arch, withIntermediateDirectories: true)
                     try await Library.export(item.asset, to: arch) { _ in }
                     log += "  archived original OK\n"

@@ -7,7 +7,7 @@
 
 import SwiftUI
 import Photos
-import SlimreelKit
+import ShrinkEmKit
 
 struct Job: Identifiable {
     enum Kind {
@@ -315,7 +315,7 @@ final class WorkQueue: ObservableObject {
 // MARK: - Test hook
 
 extension Library {
-    /// `SLIMREEL_QUEUETEST_DIR=<dir>`: queues dry-run jobs on real videos (files are
+    /// `SHRINKEM_QUEUETEST_DIR=<dir>`: queues dry-run jobs on real videos (files are
     /// written to `<dir>`, nothing is imported into or deleted from Photos), checks the
     /// queue's rules, measures the longest main-thread stall, logs, and quits.
     func queueSelfTest(_ dir: URL) async {
@@ -335,7 +335,7 @@ extension Library {
         let small = items.filter { $0.duration > 3 && $0.bytes > 0 }.sorted { $0.bytes < $1.bytes }
         let fourK = items.filter { min($0.width, $0.height) >= 2160 && $0.duration > 3 && !Library.isSlowMo($0.asset) }
             .sorted { $0.bytes < $1.bytes }
-        let wantBig = ProcessInfo.processInfo.environment["SLIMREEL_QUEUETEST_BIG"] != nil
+        let wantBig = ProcessInfo.processInfo.environment["SHRINKEM_QUEUETEST_BIG"] != nil
         guard small.count >= 4, let big = wantBig ? fourK.first(where: { $0.bytes > 80_000_000 }) : fourK.first
         else { note("not enough videos"); return }
         let moveIDs: Set<String> = [small[0].id, small[1].id]

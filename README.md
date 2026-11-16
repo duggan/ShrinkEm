@@ -1,22 +1,22 @@
 <p align="center">
-  <img src="docs/assets/banner.png" alt="Slimreel: find and shrink your biggest videos." width="760">
+  <img src="docs/assets/banner.png" alt="ShrinkEm: keep every video, just smaller." width="760">
 </p>
 
 <p align="center"><b>Find the big videos filling your iCloud, and get the space back without losing a thing.</b></p>
 
 <p align="center">
-  <a href="https://github.com/duggan/Slimreel/releases/latest/download/Slimreel.dmg"><b>⬇ Download Slimreel for Mac</b></a>
+  <a href="https://github.com/duggan/ShrinkEm/releases/latest/download/ShrinkEm.dmg"><b>⬇ Download ShrinkEm for Mac</b></a>
   ·
-  <a href="https://duggan.github.io/Slimreel/">Website</a>
+  <a href="https://duggan.github.io/ShrinkEm/">Website</a>
   ·
-  <a href="https://github.com/duggan/Slimreel/releases">All releases</a>
+  <a href="https://github.com/duggan/ShrinkEm/releases">All releases</a>
 </p>
 
 <p align="center">Free and open source · macOS 14 or later</p>
 
 <p align="center">
-  <a href="https://github.com/duggan/Slimreel/actions/workflows/ci.yml"><img src="https://github.com/duggan/Slimreel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/duggan/Slimreel/releases/latest"><img src="https://img.shields.io/github/v/release/duggan/Slimreel" alt="Latest release"></a>
+  <a href="https://github.com/duggan/ShrinkEm/actions/workflows/ci.yml"><img src="https://github.com/duggan/ShrinkEm/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/duggan/ShrinkEm/releases/latest"><img src="https://img.shields.io/github/v/release/duggan/ShrinkEm" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0"></a>
 </p>
 
@@ -26,7 +26,7 @@ Your iCloud storage is nearly full, and most of it is videos. Photos can show yo
 videos, but it can't sort them by size, so the few huge ones (a 4K clip shot at 120 fps
 by accident, a forgotten screen recording) hide among the thousands of small ones.
 
-Slimreel lists every video in your Photos library biggest first. Then you decide, one
+ShrinkEm lists every video in your Photos library biggest first. Then you decide, one
 video or a whole selection at a time: keep it, delete it, move the full original to a
 folder or a NAS, or shrink it to a size that still looks fine on a phone.
 
@@ -50,14 +50,18 @@ folder or a NAS, or shrink it to a size that still looks fine on a phone.
 
 ## Install
 
-[Download Slimreel.dmg](https://github.com/duggan/Slimreel/releases/latest/download/Slimreel.dmg),
-open it, and drag Slimreel to your Applications folder. It's signed and notarized by
+[Download ShrinkEm.dmg](https://github.com/duggan/ShrinkEm/releases/latest/download/ShrinkEm.dmg),
+open it, and drag ShrinkEm to your Applications folder. It's signed and notarized by
 Apple, runs on macOS 14 or later, and is a universal app for Apple silicon and Intel
 Macs.
 
+ShrinkEm was called Slimreel in its first release (1.0.0). If you have Slimreel
+installed, ShrinkEm picks up your Keep marks and settings the first time it opens, and
+macOS asks once for Photos access again. You can then delete Slimreel.
+
 ## How to use it
 
-1. Open Slimreel and allow access to your Photos library when macOS asks.
+1. Open ShrinkEm and allow access to your Photos library when macOS asks.
 2. Your videos appear biggest first. Pick a date range on the chart or set a minimum
    size to narrow the list.
 3. Select one or more videos (the side panel previews a single one) and choose **Keep**
@@ -76,11 +80,11 @@ Each job's summary stays until you clear it.
 Videos in the queue are marked with a clock and can't be queued twice or deleted until
 their job finishes. When a job finishes, Photos asks you to confirm deleting its
 originals, as before. Closing the window doesn't stop the queue (the Dock icon counts
-the videos left), and Slimreel asks before quitting with work still queued.
+the videos left), and ShrinkEm asks before quitting with work still queued.
 
 ### Shrink
 
-Choose a resolution (1080p or 720p) and a frame rate (60 or 30 fps). Slimreel skips
+Choose a resolution (1080p or 720p) and a frame rate (60 or 30 fps). ShrinkEm skips
 slow-motion videos (they need their high frame rate), videos already within the limits,
 and any that wouldn't come out at least 10% smaller. Edits are baked into the new copy.
 Turn on **Save the full-quality originals to a folder first** to keep the originals on
@@ -88,7 +92,7 @@ a drive.
 
 ### Move to Folder
 
-Pick a folder; Slimreel remembers it. It checks there's room first, works with network
+Pick a folder; ShrinkEm remembers it. It checks there's room first, works with network
 shares, and never overwrites a file (a second copy becomes `IMG_1234 2.MOV`). Saved
 files keep the video's original date.
 
@@ -118,7 +122,7 @@ before anything is deleted.
 
 ## Privacy
 
-Everything stays on your Mac. Slimreel makes no network requests of its own and has no
+Everything stays on your Mac. ShrinkEm makes no network requests of its own and has no
 account. The only permission it asks for is access to your Photos library, to list and
 change your videos. When a video is only in iCloud, Photos downloads it as usual to
 preview, move or shrink it.
@@ -144,7 +148,7 @@ Needs Xcode 26 (the Swift 6 toolchain); the app targets macOS 14.
 
 ```sh
 make run       # build, sign and launch
-make test      # SlimreelKit unit tests (swift test)
+make test      # ShrinkEmKit unit tests (swift test)
 make icons     # regenerate artwork (needs Inkscape)
 make dmg       # signed DMG for local testing
 make release   # notarized DMG (see docs/RELEASING.md)
@@ -154,7 +158,7 @@ Signing uses a Developer ID; override `SIGN_ID` in the Makefile for your own.
 
 ## Credits
 
-iCloud, Photos and Mac are trademarks of Apple Inc. Slimreel is an independent project
+iCloud, Photos and Mac are trademarks of Apple Inc. ShrinkEm is an independent project
 and isn't affiliated with Apple.
 
 ## Licence

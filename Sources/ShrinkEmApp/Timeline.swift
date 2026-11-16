@@ -2,7 +2,7 @@
 
 import SwiftUI
 import Charts
-import SlimreelKit
+import ShrinkEmKit
 
 struct SizeTimeline: View {
     let items: [VideoItem]          // already filtered by everything except date

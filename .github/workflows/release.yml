@@ -1,6 +1,6 @@
 name: Release
 
-# Builds, signs (Developer ID), notarizes and staples Slimreel.dmg using
+# Builds, signs (Developer ID), notarizes and staples ShrinkEm.dmg using
 # `make release`. What gets published depends on the trigger:
 #
 #   tag v1.2.3          -> GitHub release (marked latest)
@@ -21,7 +21,7 @@ name: Release
 #   NOTARY_PASSWORD             app-specific password for that Apple ID
 #                               (https://appleid.apple.com)
 # The Team ID and signing identity come from the Makefile (TEAM_ID / SIGN_ID),
-# and the notary profile is stored as the Makefile's default, `slimreel`.
+# and the notary profile is stored as the Makefile's default, `shrinkem`.
 
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
       # The `runner` context isn't available in job-level `env`, so derive the
       # keychain path from $RUNNER_TEMP here and export it to later steps.
       - name: Set keychain path
-        run: echo "KEYCHAIN=$RUNNER_TEMP/slimreel-build.keychain-db" >> "$GITHUB_ENV"
+        run: echo "KEYCHAIN=$RUNNER_TEMP/shrinkem-build.keychain-db" >> "$GITHUB_ENV"
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           TEAM_ID="$(sed -n 's/^TEAM_ID *:= *//p' Makefile)"
           test -n "$TEAM_ID"
-          xcrun notarytool store-credentials slimreel \
+          xcrun notarytool store-credentials shrinkem \
             --apple-id "$NOTARY_APPLE_ID" --team-id "$TEAM_ID" \
             --password "$NOTARY_PASSWORD" --keychain "$KEYCHAIN"
 
@@ -93,8 +93,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Slimreel-dmg
-          path: build/Slimreel.dmg
+          name: ShrinkEm-dmg
+          path: build/ShrinkEm.dmg
           if-no-files-found: error
 
       - name: Work out what to publish
@@ -124,15 +124,15 @@ jobs:
           KIND: ${{ steps.plan.outputs.kind }}
         run: |
           set -euo pipefail
-          SUM="SHA-256 (Slimreel.dmg): \`$(shasum -a 256 build/Slimreel.dmg | cut -d' ' -f1)\`"
+          SUM="SHA-256 (ShrinkEm.dmg): \`$(shasum -a 256 build/ShrinkEm.dmg | cut -d' ' -f1)\`"
           # A release drafted by hand for this tag keeps its notes; only the DMG is uploaded.
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             case "$KIND" in
               release)
-                gh release create "$TAG" --verify-tag --title "Slimreel ${TAG#v}" \
+                gh release create "$TAG" --verify-tag --title "ShrinkEm ${TAG#v}" \
                   --generate-notes --notes "$SUM" ;;
               prerelease)
-                gh release create "$TAG" --verify-tag --title "Slimreel ${TAG#v}" \
+                gh release create "$TAG" --verify-tag --title "ShrinkEm ${TAG#v}" \
                   --generate-notes --notes "$SUM" --prerelease ;;
               test)
                 gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
@@ -140,7 +140,7 @@ jobs:
                   --notes "Test build of branch \`$GITHUB_REF_NAME\` at $GITHUB_SHA. Not a stable release."$'\n\n'"$SUM" ;;
             esac
           fi
-          gh release upload "$TAG" build/Slimreel.dmg --clobber
+          gh release upload "$TAG" build/ShrinkEm.dmg --clobber
 
       - name: Remove temporary keychain
         if: always()

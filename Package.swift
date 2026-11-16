@@ -2,24 +2,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "Slimreel",
+    name: "ShrinkEm",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "SlimreelKit", targets: ["SlimreelKit"]),
+        .library(name: "ShrinkEmKit", targets: ["ShrinkEmKit"]),
     ],
     targets: [
         // Pure logic with unit tests: formatting, file naming, date ranges, shrink rules.
-        .target(name: "SlimreelKit"),
+        .target(name: "ShrinkEmKit"),
 
         // The app. `make bundle` wraps this binary in the .app.
         // AVKit is linked explicitly: SwiftPM doesn't autolink it, and AVPlayerView needs it.
         .executableTarget(
-            name: "SlimreelApp",
-            dependencies: ["SlimreelKit"],
+            name: "ShrinkEmApp",
+            dependencies: ["ShrinkEmKit"],
             linkerSettings: [.linkedFramework("AVKit")]
         ),
 
-        .testTarget(name: "SlimreelKitTests", dependencies: ["SlimreelKit"]),
+        .testTarget(name: "ShrinkEmKitTests", dependencies: ["ShrinkEmKit"]),
     ],
     swiftLanguageModes: [.v5]
 )

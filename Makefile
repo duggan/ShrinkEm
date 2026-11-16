@@ -1,10 +1,10 @@
-# Slimreel — build, bundle, sign, and notarize a Developer-ID macOS app for
+# ShrinkEm — build, bundle, sign, and notarize a Developer-ID macOS app for
 # finding, shrinking and archiving the big videos filling your iCloud storage.
 # Needs only the Swift toolchain that ships with Xcode (plus an Apple ID for
 # `make release`). GPL-3.0.
 
-APP_NAME := Slimreel
-APP_ID   := ie.duggan.Slimreel
+APP_NAME := ShrinkEm
+APP_ID   := dev.hyperspecific.ShrinkEm
 TEAM_ID  := PSPQTHW392
 
 # Override if your identity string differs:
@@ -23,7 +23,7 @@ APP_ICON       := Resources/$(APP_NAME).icns
 DMG_BACKGROUND := Resources/dmg-background.tiff
 
 # `xcrun notarytool store-credentials` keychain profile (see `make notary-setup`).
-NOTARY_PROFILE ?= slimreel
+NOTARY_PROFILE ?= shrinkem
 
 # Styled "drag to Applications" DMG layout (built with create-dmg). The
 # background is left out until Resources/dmg-background.png exists.
@@ -63,7 +63,7 @@ sign: bundle ## Code-sign the app with Hardened Runtime and verify
 run: sign ## Sign then launch the app
 	open "$(APP_BUNDLE)"
 
-test: ## Run the SlimreelKit unit tests
+test: ## Run the ShrinkEmKit unit tests
 	swift test
 
 icons: ## Regenerate artwork from Resources/art/make_icons.py (needs Inkscape)

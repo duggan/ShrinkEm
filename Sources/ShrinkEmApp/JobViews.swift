@@ -2,7 +2,7 @@
 // Both observe WorkQueue directly, so progress ticks redraw only these views.
 
 import SwiftUI
-import SlimreelKit
+import ShrinkEmKit
 
 /// The queue's toolbar button: a tray icon with a progress ring while a job runs (a
 /// spinner while Photos waits for a delete confirmation). The Dock badge and the

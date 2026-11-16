@@ -1,5 +1,5 @@
 import XCTest
-@testable import SlimreelKit
+@testable import ShrinkEmKit
 
 final class FileNamingTests: XCTestCase {
     func testKeepsVideoExtension() {

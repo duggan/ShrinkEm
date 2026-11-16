@@ -5,17 +5,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Slimreel</string>
+	<string>ShrinkEm</string>
 	<key>CFBundleExecutable</key>
-	<string>Slimreel</string>
+	<string>ShrinkEm</string>
 	<key>CFBundleIconFile</key>
-	<string>Slimreel</string>
+	<string>ShrinkEm</string>
 	<key>CFBundleIdentifier</key>
-	<string>ie.duggan.Slimreel</string>
+	<string>dev.hyperspecific.ShrinkEm</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Slimreel</string>
+	<string>ShrinkEm</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -31,7 +31,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Ross Duggan. GPL-3.0.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Slimreel lists your videos by size so you can decide which to keep, shrink or move. Nothing leaves your Mac.</string>
+	<string>ShrinkEm lists your videos by size so you can decide which to keep, shrink or move. Nothing leaves your Mac.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
