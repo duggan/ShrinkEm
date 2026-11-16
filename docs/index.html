@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slimreel: your biggest videos, first</title>
+<meta name="description" content="Slimreel is a free, open-source Mac app that finds the big videos filling your iCloud, and gets the space back without losing a thing. Keep, delete, move or shrink each one. Everything stays on your Mac.">
+<link rel="canonical" href="https://duggan.github.io/Slimreel/">
+<meta name="theme-color" content="#7EE0C3">
+<meta name="color-scheme" content="light">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Slimreel">
+<meta property="og:title" content="Slimreel: your biggest videos, first">
+<meta property="og:description" content="A free, open-source Mac app that finds the big videos filling your iCloud, and gets the space back without losing a thing.">
+<meta property="og:url" content="https://duggan.github.io/Slimreel/">
+<meta property="og:image" content="https://duggan.github.io/Slimreel/assets/banner.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="A small white video clip with dot eyes, pink cheeks and a contented smile, in front of the dotted outline of a much bigger video, on mint green, next to the word Slimreel and the line: your biggest videos, first.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Slimreel: your biggest videos, first">
+<meta name="twitter:description" content="A free, open-source Mac app that finds the big videos filling your iCloud, and gets the space back without losing a thing.">
+<meta name="twitter:image" content="https://duggan.github.io/Slimreel/assets/banner.png">
+<meta name="twitter:image:alt" content="A small white video clip with dot eyes, pink cheeks and a contented smile, in front of the dotted outline of a much bigger video, on mint green, next to the word Slimreel and the line: your biggest videos, first.">
+<style>
+/* ---------- basics ---------- */
+:root {
+  color-scheme: light;
+  --ink: #1F2329;
+  --paper: #F3F1EC;
+  --mint: #7EE0C3;
+  --mint-light: #B8F0DF;
+  --mint-deep: #1FA588;
+  --mint-text: #0F6F5B;
+  --coral: #FF6B4A;
+  --cheek: #FF9D8A;
+  --sun: #FFD84A;
+  --sky: #7CCBFF;
+  --red: #FF3B30;
+  --display: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, "Segoe UI", Roboto, Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { overflow-x: clip; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; font: 400 1.0625rem/1.6 var(--body); color: var(--ink); background: var(--paper); overflow-x: hidden; }
+img, svg { max-width: 100%; display: block; }
+a { color: inherit; text-decoration-thickness: .1em; text-underline-offset: .18em; }
+h1, h2, h3, p { margin: 0; }
+:focus-visible { outline: 4px solid var(--ink); outline-offset: 3px; box-shadow: 0 0 0 3px #fff; border-radius: 6px; }
+.wrap { width: min(1160px, 100% - 2.5rem); margin-inline: auto; }
+.skip { position: absolute; left: 1rem; top: -4rem; z-index: 10; background: #fff; padding: .5rem 1rem; border: 3px solid var(--ink); border-radius: 10px; font-weight: 700; }
+.skip:focus { top: 1rem; }
+
+/* ---------- shared pieces ---------- */
+.display { font-family: var(--display); font-weight: 900; letter-spacing: -.015em; line-height: 1.02; }
+.num { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; }
+.sticker { background: #fff; border: 3px solid var(--ink); border-radius: 20px; box-shadow: 6px 6px 0 var(--ink); }
+.btn { display: inline-flex; align-items: center; gap: .6em; font: 800 1.25rem/1 var(--display); text-decoration: none; color: var(--ink); background: var(--sun); padding: .8em 1.15em; border: 3px solid var(--ink); border-radius: 16px; box-shadow: 6px 6px 0 var(--ink); transition: transform .12s, box-shadow .12s; }
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--ink); }
+.btn:active { transform: translate(4px, 4px); box-shadow: 2px 2px 0 var(--ink); }
+.btn svg { width: 1.1em; height: 1.1em; flex: none; }
+.btn.ghost { background: #fff; font-size: 1.05rem; }
+.btn.small { font-size: 1rem; box-shadow: 4px 4px 0 var(--ink); border-radius: 12px; padding: .65em .95em; }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; margin: 0; }
+.chips li { background: #fff; border: 2.5px solid var(--ink); border-radius: 999px; padding: .2em .85em; font-weight: 600; font-size: .92rem; }
+section { padding: clamp(3.5rem, 8vw, 6rem) 0; border-top: 4px solid var(--ink); position: relative; }
+.section-head { max-width: 44rem; margin-bottom: 2.6rem; }
+.section-head h2 { font-size: clamp(2.2rem, 5.4vw, 3.6rem); margin-bottom: .9rem; }
+.section-head p { font-size: 1.15rem; }
+
+/* ---------- header + hero ---------- */
+.hero { background: var(--mint); position: relative; overflow: hidden; padding: 5.4rem 0 clamp(7rem, 13vw, 11rem); }
+.hero > .months { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: clamp(64px, 10vw, 136px); max-width: none; }
+.hero > .wrap { position: relative; z-index: 1; }
+header.top { display: flex; align-items: center; gap: 1.25rem; padding: 1.1rem 0; position: absolute; left: 0; right: 0; top: 0; z-index: 3; }
+.brand { display: flex; align-items: center; gap: .6rem; text-decoration: none; margin-right: auto; font: 900 1.9rem/1 var(--display); letter-spacing: -.02em; }
+.brand img { width: 50px; height: 50px; }
+header.top nav { display: flex; gap: 1.4rem; font-weight: 600; }
+header.top nav a { text-decoration: none; }
+header.top nav a:hover { text-decoration: underline; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: clamp(2rem, 4vw, 3.5rem); align-items: center; padding-top: clamp(1.5rem, 4vw, 3rem); }
+.hero h1 { font-size: clamp(3rem, 5.8vw, 5rem); margin-bottom: 1.5rem; }
+.hero .lede { font-size: clamp(1.1rem, 1.5vw, 1.25rem); max-width: 33rem; margin-bottom: 1.8rem; }
+.cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.1rem; margin-bottom: 1.4rem; }
+
+/* ---------- the pretend app window ---------- */
+.shot { margin: 0; position: relative; }
+.win { background: #fff; border: 3px solid var(--ink); border-radius: 18px; box-shadow: 10px 10px 0 var(--ink); overflow: hidden; font: 500 13px/1.3 var(--body); }
+.win-bar { display: flex; align-items: center; gap: 7px; padding: 10px 13px; background: var(--paper); border-bottom: 2.5px solid var(--ink); }
+.win-bar i { width: 12px; height: 12px; border-radius: 50%; background: var(--coral); border: 1.5px solid var(--ink); }
+.win-bar i:nth-child(2) { background: var(--sun); }
+.win-bar i:nth-child(3) { background: var(--mint); }
+.win-bar span { margin: 0 auto; padding-right: 50px; font-weight: 700; }
+.win-body { padding: 14px 16px 16px; }
+.store-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 7px; font-weight: 600; }
+.store-head .num { font-size: 15px; }
+.store { height: 18px; border-radius: 9px; border: 2px solid var(--ink); background: var(--mint); overflow: hidden; }
+.store b { display: block; height: 100%; width: 32%; background: var(--coral); border-right: 2px solid var(--ink); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: 8px 0 12px; min-height: 26px; font-size: 12px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--coral); margin-right: 6px; vertical-align: -1px; }
+.legend span + span::before { background: var(--mint); }
+.freed { margin-left: auto; font: 800 14px/1 var(--display); background: var(--mint); border: 2px solid var(--ink); border-radius: 999px; padding: .4em .8em; box-shadow: 3px 3px 0 var(--ink); font-variant-numeric: tabular-nums; }
+.freed.hide { visibility: hidden; }
+.freed.pop { animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes pop { from { transform: scale(.6); } to { transform: scale(1); } }
+.rows { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+.rows li { display: grid; grid-template-columns: 54px minmax(0, 1fr) 76px; gap: 12px; align-items: center; padding: 9px 6px; border-bottom: 1.5px solid rgba(31, 35, 41, .16); border-radius: 10px; transition: background .25s; }
+.rows li:last-child { border-bottom: 0; }
+.rows li.active { background: var(--mint-light); }
+.thumb { width: 54px; height: 40px; border-radius: 8px; border: 2px solid var(--ink); overflow: hidden; }
+.meta { min-width: 0; }
+.meta strong { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
+.meta small { display: block; font-size: 11.5px; opacity: .72; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0 5px; }
+.tag { font: 800 10.5px/1 var(--display); letter-spacing: .02em; border: 1.5px solid var(--ink); border-radius: 999px; padding: .28em .6em; background: var(--mint); }
+.tag.kept { background: var(--sun); }
+.tag.moved { background: var(--sky); }
+.tag.hide { display: none; }
+.bar { height: 8px; border-radius: 4px; background: rgba(31, 35, 41, .1); }
+.bar b { display: block; height: 100%; min-width: 0; border-radius: 4px; background: var(--coral); }
+.bar b.done { background: var(--mint-deep); }
+.size { text-align: right; font: 800 19px/1 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.size.done { color: var(--mint-text); }
+.shot .snug { position: absolute; right: -26px; top: -62px; width: 132px; height: auto; max-width: none; z-index: 2; animation: bob 4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-6px) rotate(-2deg); } }
+.shot figcaption { margin-top: 1.4rem; font-size: .92rem; font-weight: 600; }
+
+/* ---------- sorted the way Photos won't ---------- */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8rem; list-style: none; padding: 0; margin: 0; }
+.steps li { padding: 1.2rem 1.2rem 1.4rem; }
+.steps h3 { font: 800 1.45rem/1.1 var(--display); margin: 1.1rem 0 .45rem; }
+.pic { aspect-ratio: 16 / 9; border: 2.5px solid var(--ink); border-radius: 12px; background: var(--paper); overflow: hidden; position: relative; }
+.pic svg { width: 100%; height: 100%; }
+.pic-cols { display: grid; align-content: center; gap: 4%; padding: 0 7%; font: 800 clamp(.7rem, 1.25vw, .86rem)/1 var(--display); font-variant-numeric: tabular-nums; }
+.pic-cols div { display: grid; grid-template-columns: 1.1fr .9fr 1.2fr .9fr; gap: 4%; align-items: center; }
+.pic-cols div:first-child { font-weight: 700; opacity: .6; font-size: .86em; }
+.pic-cols div:not(:first-child) { background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 3.5% 4%; }
+.pic-cols div:not(:first-child) span:first-child { color: #C63A1E; }
+.pic-filters { display: flex; flex-wrap: wrap; align-content: center; gap: 7px; padding: 0 6%; }
+.pic-filters span { background: #fff; border: 2px solid var(--ink); border-radius: 999px; padding: .25em .7em; font: 700 clamp(.68rem, 1.15vw, .8rem)/1.2 var(--display); white-space: nowrap; }
+.pic-filters span.on { background: var(--mint); }
+.pic-filters span.sun { background: var(--sun); }
+
+/* ---------- four actions ---------- */
+.actions { background: var(--mint-light); }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+.card { padding: 0 0 1.4rem; overflow: hidden; }
+.card .cap { display: flex; align-items: center; gap: .6rem; padding: .85rem 1.1rem; border-bottom: 3px solid var(--ink); font: 900 1.45rem/1 var(--display); }
+.card .cap svg { width: 1.5rem; height: 1.5rem; flex: none; }
+.card.keep .cap { background: var(--sun); }
+.card.move .cap { background: var(--sky); }
+.card.shrink .cap { background: var(--mint); }
+.card.delete .cap { background: #fff; }
+.card.delete .cap svg { color: var(--red); }
+.card p { margin: 1rem 1.1rem 0; font-size: 1rem; }
+.both { margin-top: 2rem; padding: 1.2rem 1.4rem; display: grid; grid-template-columns: auto 1fr; gap: 1.2rem; align-items: center; }
+.both .swatches { display: flex; }
+.both .swatches i { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 3px solid var(--ink); margin-right: -.6rem; background: var(--sky); }
+.both .swatches i + i { background: var(--mint); }
+.both h3 { font: 800 1.4rem/1.1 var(--display); margin-bottom: .3rem; }
+
+/* ---------- nothing lost ---------- */
+.safe .wrap > .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 2.5rem; align-items: start; }
+.results { display: grid; gap: 1.3rem; }
+.result { padding: 1.3rem 1.4rem; }
+.result .figs { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1em .5em; font: 900 clamp(2.2rem, 4.6vw, 3.3rem)/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.result .figs s { text-decoration: none; color: #C63A1E; }
+.result .figs i { font-style: normal; font-size: .6em; opacity: .5; }
+.result .figs b { color: var(--mint-text); }
+.result p { margin-top: .5rem; font-size: .98rem; }
+.lists { display: grid; gap: 1.2rem; }
+.lists .safety { font: 700 1.3rem/1.35 var(--display); padding: 1.2rem 1.4rem; background: var(--sun); }
+.lists h3 { font: 800 1.2rem/1.2 var(--display); margin-bottom: .4rem; }
+.lists ul { margin: 0; padding-left: 1.2rem; }
+.lists li + li { margin-top: .3rem; }
+.lists .box { padding: 1.1rem 1.4rem 1.2rem; }
+
+/* ---------- privacy ---------- */
+.privacy { background: var(--ink); color: #fff; overflow: hidden; }
+.privacy .wrap { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
+.privacy h2 { font-size: clamp(2.4rem, 6vw, 4.2rem); color: var(--mint); margin-bottom: 1.2rem; }
+.privacy p { font-size: 1.15rem; max-width: 36rem; }
+.privacy p + p { margin-top: .9rem; }
+.privacy p.fine { font-size: .95rem; opacity: .8; }
+.nope { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+.nope li { background: #fff; color: var(--ink); border: 3px solid #000; border-radius: 16px; box-shadow: 5px 5px 0 var(--mint); padding: .8rem 1.1rem; font: 800 1.3rem/1.1 var(--display); display: flex; align-items: center; gap: .8rem; }
+.nope li:nth-child(even) { box-shadow: 5px 5px 0 var(--sun); }
+.nope svg { width: 2rem; height: 2rem; flex: none; }
+.privacy :focus-visible { outline-color: #fff; box-shadow: none; }
+
+/* ---------- faq ---------- */
+.faq-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem 1.6rem; align-items: start; }
+details { padding: 0; box-shadow: 4px 4px 0 var(--ink); }
+summary { cursor: pointer; list-style: none; padding: 1rem 3rem 1rem 1.2rem; font: 700 1.1rem/1.35 var(--display); position: relative; border-radius: 17px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); width: 1.7rem; height: 1.7rem; display: grid; place-items: center; background: var(--mint-light); border: 2.5px solid var(--ink); border-radius: 50%; font: 800 1.2rem/1 system-ui, sans-serif; transition: transform .15s; }
+details[open] summary::after { transform: translateY(-50%) rotate(45deg); background: var(--mint); }
+details p { padding: 0 1.2rem 1.1rem; }
+
+/* ---------- last call + footer ---------- */
+.final { background: var(--mint); overflow: hidden; text-align: center; }
+.final .wrap { position: relative; display: grid; justify-items: center; gap: 1.3rem; }
+.final img { width: 200px; height: 200px; }
+.final h2 { font-size: clamp(2.6rem, 7vw, 4.8rem); }
+.final p { font-weight: 600; }
+footer { background: var(--ink); color: #fff; padding: 2.2rem 0; border-top: 4px solid var(--ink); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; }
+footer .name { font: 900 1.7rem/1 var(--display); letter-spacing: -.02em; }
+footer nav { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; font-weight: 600; margin-left: auto; }
+footer p { width: 100%; font-size: .9rem; opacity: .75; }
+footer :focus-visible { outline-color: #fff; box-shadow: none; }
+
+/* ---------- smaller screens ---------- */
+@media (max-width: 1020px) {
+  .hero-grid, .privacy .wrap, .safe .wrap > .grid { grid-template-columns: minmax(0, 1fr); }
+  .hero h1 { font-size: clamp(2.9rem, 11vw, 5.4rem); }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .shot { max-width: 40rem; margin-top: 2.5rem; }
+}
+@media (max-width: 760px) {
+  header.top nav { display: none; }
+  .steps, .faq-list { grid-template-columns: 1fr; }
+  .steps { max-width: 28rem; margin-inline: auto; }
+  .pic-cols { font-size: .86rem; }
+  .pic-filters span { font-size: .8rem; }
+}
+@media (max-width: 620px) {
+  .cards { grid-template-columns: 1fr; }
+  .win { box-shadow: 6px 6px 0 var(--ink); }
+  .win-body { padding: 12px 10px 12px; }
+  .rows li { grid-template-columns: 44px minmax(0, 1fr) 64px; gap: 9px; padding-inline: 2px; }
+  .thumb { width: 44px; height: 33px; }
+  .size { font-size: 16px; }
+  .shot .snug { width: 100px; right: -8px; top: -50px; }
+  .brand { font-size: 1.6rem; }
+  .brand img { width: 42px; height: 42px; }
+  .both { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- Shared drawings. Snug is the same character as in the app icon (Resources/art/make_icons.py). Original. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="snug" viewBox="-250 -200 520 420">
+      <g transform="rotate(5)">
+        <rect x="-210" y="-158" width="420" height="316" rx="80" transform="translate(30 32)" fill="#FF6B4A" stroke="#1F2329" stroke-width="20" stroke-linejoin="round"/>
+        <rect x="-210" y="-158" width="420" height="316" rx="80" fill="#FFF" stroke="#1F2329" stroke-width="20" stroke-linejoin="round"/>
+        <g fill="#1F2329"><rect x="-144" y="-128" width="36" height="24" rx="9"/><rect x="-60" y="-128" width="36" height="24" rx="9"/><rect x="24" y="-128" width="36" height="24" rx="9"/><rect x="108" y="-128" width="36" height="24" rx="9"/><rect x="-144" y="104" width="36" height="24" rx="9"/><rect x="-60" y="104" width="36" height="24" rx="9"/><rect x="24" y="104" width="36" height="24" rx="9"/><rect x="108" y="104" width="36" height="24" rx="9"/></g>
+        <ellipse cx="-112" cy="40" rx="31" ry="19" fill="#FF9D8A"/><ellipse cx="112" cy="40" rx="31" ry="19" fill="#FF9D8A"/>
+        <ellipse cx="-62" cy="-12" rx="25" ry="35" fill="#1F2329"/><circle cx="-69" cy="-25" r="9.5" fill="#FFF"/><ellipse cx="62" cy="-12" rx="25" ry="35" fill="#1F2329"/><circle cx="55" cy="-25" r="9.5" fill="#FFF"/>
+        <path d="M-34,36 Q0,68 34,36" fill="none" stroke="#1F2329" stroke-width="16" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <symbol id="t-beach" viewBox="0 0 54 40" preserveAspectRatio="xMidYMid slice"><rect width="54" height="40" fill="#7CCBFF"/><circle cx="40" cy="12" r="6" fill="#FFD84A"/><rect y="24" width="54" height="16" fill="#1FA588"/><path d="M0,32 Q14,26 27,31 T54,29 V40 H0 Z" fill="#F3F1EC"/></symbol>
+    <symbol id="t-hills" viewBox="0 0 54 40" preserveAspectRatio="xMidYMid slice"><rect width="54" height="40" fill="#FFD84A"/><ellipse cx="12" cy="44" rx="30" ry="18" fill="#7EE0C3"/><ellipse cx="46" cy="46" rx="28" ry="18" fill="#1FA588"/></symbol>
+    <symbol id="t-night" viewBox="0 0 54 40" preserveAspectRatio="xMidYMid slice"><rect width="54" height="40" fill="#3B3F6B"/><circle cx="14" cy="12" r="5" fill="#FFD84A"/><circle cx="34" cy="9" r="1.2" fill="#fff"/><circle cx="44" cy="18" r="1.2" fill="#fff"/><rect y="30" width="54" height="10" fill="#1F2329"/></symbol>
+    <symbol id="t-cake" viewBox="0 0 54 40" preserveAspectRatio="xMidYMid slice"><rect width="54" height="40" fill="#FF9D8A"/><rect x="15" y="20" width="24" height="14" rx="3" fill="#fff"/><rect x="26" y="12" width="2.5" height="8" fill="#1F2329"/><circle cx="27.2" cy="10" r="2.4" fill="#FFD84A"/></symbol>
+    <symbol id="t-park" viewBox="0 0 54 40" preserveAspectRatio="xMidYMid slice"><rect width="54" height="40" fill="#B8F0DF"/><rect y="28" width="54" height="12" fill="#7EE0C3"/><circle cx="18" cy="18" r="9" fill="#1FA588"/><rect x="16.5" y="24" width="3" height="8" fill="#1F2329"/></symbol>
+  </defs>
+</svg>
+
+<header class="top wrap">
+  <a class="brand" href="#top" aria-label="Slimreel, home">
+    <img src="assets/icon-512.png" width="50" height="50" alt="">
+    Slimreel
+  </a>
+  <nav aria-label="Sections">
+    <a href="#sorted">How it works</a>
+    <a href="#actions">Actions</a>
+    <a href="#safe">Safety</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://github.com/duggan/Slimreel">GitHub</a>
+  </nav>
+  <a class="btn small" href="https://github.com/duggan/Slimreel/releases/latest/download/Slimreel.dmg">Download</a>
+</header>
+
+<main id="main">
+<div class="hero" id="top">
+  <!-- the size-by-month chart, as a backdrop -->
+  <svg class="months" viewBox="0 0 1200 190" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <g fill="#B8F0DF"><rect x="10" y="150" width="30" height="60" rx="10"/><rect x="60" y="138" width="30" height="72" rx="10"/><rect x="110" y="120" width="30" height="90" rx="10"/><rect x="160" y="96" width="30" height="114" rx="10"/><rect x="210" y="70" width="30" height="140" rx="10"/><rect x="410" y="60" width="30" height="150" rx="10"/><rect x="460" y="92" width="30" height="118" rx="10"/><rect x="510" y="118" width="30" height="92" rx="10"/><rect x="560" y="136" width="30" height="74" rx="10"/><rect x="610" y="148" width="30" height="62" rx="10"/><rect x="660" y="140" width="30" height="70" rx="10"/><rect x="710" y="154" width="30" height="56" rx="10"/><rect x="760" y="160" width="30" height="50" rx="10"/><rect x="810" y="150" width="30" height="60" rx="10"/><rect x="860" y="162" width="30" height="48" rx="10"/><rect x="910" y="166" width="30" height="44" rx="10"/><rect x="960" y="158" width="30" height="52" rx="10"/><rect x="1010" y="168" width="30" height="42" rx="10"/><rect x="1060" y="170" width="30" height="40" rx="10"/><rect x="1110" y="164" width="30" height="46" rx="10"/><rect x="1160" y="172" width="30" height="38" rx="10"/></g>
+    <g fill="#FF6B4A"><rect x="260" y="38" width="30" height="172" rx="10"/><rect x="310" y="14" width="30" height="196" rx="10"/><rect x="360" y="34" width="30" height="176" rx="10"/></g>
+  </svg>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <h1 class="display">Your biggest videos, first.</h1>
+        <p class="lede">Find the big videos filling your iCloud, and get the space back without losing a thing. Slimreel lists every video in your Photos library by size, so you can keep, delete, move or shrink each one.</p>
+        <div class="cta-row">
+          <a class="btn" href="https://github.com/duggan/Slimreel/releases/latest/download/Slimreel.dmg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6.5 10.5 12 16l5.5-5.5M4 21h16"/></svg>
+            Download for Mac
+          </a>
+          <a class="btn ghost" href="https://github.com/duggan/Slimreel">Source on GitHub</a>
+        </div>
+        <ul class="chips">
+          <li>Requires macOS 14</li>
+          <li>Free &amp; open source</li>
+          <li>Nothing leaves your Mac</li>
+        </ul>
+      </div>
+
+      <figure class="shot">
+        <svg class="snug" viewBox="0 0 520 420" width="132" height="107" aria-hidden="true"><use href="#snug"/></svg>
+        <div class="win" id="demo" role="img" aria-label="An illustration of Slimreel's window. Five videos are listed biggest first: 72, 58, 42, 31 and 24 megabytes. The first is shrunk from 72 MB to 8.9 MB, the second is moved to a folder, the third is shrunk from 42 MB to 7.8 MB and the fourth is kept. A bar above the list goes from all coral to mostly mint, and a label reads: Freed 155 MB.">
+          <div class="win-bar" aria-hidden="true"><i></i><i></i><i></i><span>Slimreel</span></div>
+          <div class="win-body" aria-hidden="true">
+            <div class="store-head"><span>These five videos</span><span class="num" id="d-total">72 MB</span></div>
+            <div class="store"><b id="d-store"></b></div>
+            <div class="legend"><span>Still in Photos</span><span>Freed</span><b class="freed" id="d-freed">Freed 155 MB</b></div>
+            <ul class="rows" id="d-rows">
+              <li>
+                <svg class="thumb" viewBox="0 0 54 40"><use href="#t-beach"/></svg>
+                <div class="meta"><strong>14 Jun 2025 <span class="tag">Shrunk</span></strong><small>4K &middot; 120 fps &middot; 0:42</small><div class="bar"><b class="done" style="width:12.4%"></b></div></div>
+                <div class="size done">8.9 MB</div>
+              </li>
+              <li>
+                <svg class="thumb" viewBox="0 0 54 40"><use href="#t-hills"/></svg>
+                <div class="meta"><strong>2 Aug 2024 <span class="tag moved">Moved</span></strong><small>4K &middot; 60 fps &middot; 0:51</small><div class="bar"><b class="done" style="width:0%"></b></div></div>
+                <div class="size done">0 MB</div>
+              </li>
+              <li>
+                <svg class="thumb" viewBox="0 0 54 40"><use href="#t-cake"/></svg>
+                <div class="meta"><strong>25 Dec 2024 <span class="tag">Shrunk</span></strong><small>4K &middot; 60 fps &middot; 0:38</small><div class="bar"><b class="done" style="width:10.8%"></b></div></div>
+                <div class="size done">7.8 MB</div>
+              </li>
+              <li>
+                <svg class="thumb" viewBox="0 0 54 40"><use href="#t-night"/></svg>
+                <div class="meta"><strong>31 Oct 2023 <span class="tag kept">Kept</span></strong><small>1080p &middot; 30 fps &middot; 1:12</small><div class="bar"><b style="width:43.1%"></b></div></div>
+                <div class="size">31 MB</div>
+              </li>
+              <li>
+                <svg class="thumb" viewBox="0 0 54 40"><use href="#t-park"/></svg>
+                <div class="meta"><strong>9 Mar 2025</strong><small>1080p &middot; 60 fps &middot; 0:35</small><div class="bar"><b style="width:33.3%"></b></div></div>
+                <div class="size">24 MB</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <figcaption>An illustration, with real numbers: a 72 MB 4K 120 fps clip came out at 8.9 MB.</figcaption>
+      </figure>
+    </div>
+  </div>
+</div>
+
+<section id="sorted" aria-labelledby="sorted-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="sorted-h" class="display">Sorted the way Photos won't.</h2>
+      <p>Photos can show you your videos, but not which ones are taking up the room. Slimreel reads your library and puts the biggest at the top.</p>
+    </div>
+    <ol class="steps">
+      <li class="sticker">
+        <div class="pic pic-cols" aria-hidden="true">
+          <div><span>Size</span><span>Length</span><span>MB/min</span><span>Res.</span></div>
+          <div><span>72 MB</span><span>0:42</span><span>103</span><span>4K</span></div>
+          <div><span>58 MB</span><span>0:51</span><span>68</span><span>4K</span></div>
+          <div><span>42 MB</span><span>0:38</span><span>66</span><span>4K</span></div>
+        </div>
+        <h3>Biggest first</h3>
+        <p>Every video with its size, length, megabytes per minute, date and resolution. Click one to watch it in the preview player before you decide.</p>
+      </li>
+      <li class="sticker">
+        <div class="pic" aria-hidden="true">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="none">
+            <rect x="96" y="14" width="112" height="152" rx="8" fill="#B8F0DF" stroke="#1F2329" stroke-width="2.5"/>
+            <g fill="#1FA588"><rect x="18" y="128" width="16" height="30" rx="4"/><rect x="42" y="118" width="16" height="40" rx="4"/><rect x="66" y="134" width="16" height="24" rx="4"/><rect x="186" y="96" width="16" height="62" rx="4"/><rect x="214" y="122" width="16" height="36" rx="4"/><rect x="238" y="136" width="16" height="22" rx="4"/><rect x="262" y="130" width="16" height="28" rx="4"/><rect x="286" y="142" width="16" height="16" rx="4"/></g>
+            <g fill="#FF6B4A"><rect x="106" y="70" width="16" height="88" rx="4"/><rect x="134" y="34" width="16" height="124" rx="4"/><rect x="162" y="58" width="16" height="100" rx="4"/></g>
+            <g fill="#fff" stroke="#1F2329" stroke-width="2.5"><rect x="90" y="72" width="12" height="36" rx="5"/><rect x="202" y="72" width="12" height="36" rx="5"/></g>
+          </svg>
+        </div>
+        <h3>See when it piled up</h3>
+        <p>A timeline shows how much video each month added. Drag across it to pick a date range, or use a preset: Last 30 days, Last 12 months, Older than 1, 3 or 5 years, or a single year.</p>
+      </li>
+      <li class="sticker">
+        <div class="pic pic-filters" aria-hidden="true">
+          <span class="on">Older than 3 years</span><span>Last 12 months</span><span>2024</span><span class="on">At least 500 MB</span><span class="sun">Hide Kept</span>
+        </div>
+        <h3>Narrow it down</h3>
+        <p>Set a minimum size to see only the heavy ones, and turn on Hide Kept so videos you've already decided about stay out of the way.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="actions" class="actions" aria-labelledby="actions-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="actions-h" class="display">Four things you can do with a big video.</h2>
+      <p>Pick one video or select several. Each action says what it will do before it does it.</p>
+    </div>
+    <div class="cards">
+      <article class="card sticker keep">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5 10 18 19.5 6.5"/></svg><h3>Keep</h3></div>
+        <p>Marks the video as reviewed. With Hide Kept on, it won't show up again unless you ask. Nothing in Photos changes.</p>
+      </article>
+      <article class="card sticker move">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9.5A1.5 1.5 0 0 0 19.5 8H12L10 5H4.5A1.5 1.5 0 0 0 3 6.5Z"/></svg><h3>Move to Folder</h3></div>
+        <p>Saves the original, and the edited version if there is one, to a folder you choose. A network drive or NAS works too. Each copy's size is checked byte for byte, and free space is checked first. Then the video is removed from Photos.</p>
+      </article>
+      <article class="card sticker shrink">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4l-6 6M14 5.5V10h4.5M4 20l6-6M10 18.5V14H5.5"/></svg><h3>Shrink</h3></div>
+        <p>Replaces the video with a smaller copy: 1080p at 60 fps in HEVC, which keeps HDR, or 720p at 30 fps in H.264. The date, location, favourite, hidden state and albums carry over, and your edits are baked in.</p>
+      </article>
+      <article class="card sticker delete">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5"/></svg><h3>Delete</h3></div>
+        <p>Sends the video to Recently Deleted in Photos. Photos asks you to confirm first, and you can recover it from there until Photos empties it.</p>
+      </article>
+    </div>
+    <div class="both sticker">
+      <div class="swatches" aria-hidden="true"><i></i><i></i></div>
+      <div>
+        <h3>Or both: archive the original, keep a small copy</h3>
+        <p>Turn on &ldquo;save the full-quality original to a folder first&rdquo; when you shrink. The original goes to your drive, and the small copy stays in Photos where you can still find it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="safe" class="safe" aria-labelledby="safe-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="safe-h" class="display">Nothing lost.</h2>
+      <p>These are your videos, so Slimreel is careful with them, and exact about what each step does.</p>
+    </div>
+    <div class="grid">
+      <div class="results">
+        <div class="result sticker">
+          <p class="figs"><s>72 MB</s> <i aria-hidden="true">&rarr;</i> <b>8.9 MB</b></p>
+          <p>A 4K 120 fps clip, shrunk to 1080p at 60 fps.</p>
+        </div>
+        <div class="result sticker">
+          <p class="figs"><s>42 MB</s> <i aria-hidden="true">&rarr;</i> <b>7.8 MB</b></p>
+          <p>Another clip from the same library. Your own results depend on the video.</p>
+        </div>
+      </div>
+      <div class="lists">
+        <p class="safety sticker">Nothing is removed until its copy has been checked byte for byte, and Photos asks you before anything is deleted.</p>
+        <div class="box sticker">
+          <h3>What Shrink keeps</h3>
+          <ul>
+            <li>The date, location, favourite, hidden state and albums.</li>
+            <li>Your edits, baked into the smaller copy.</li>
+            <li>HDR, at 1080p.</li>
+          </ul>
+        </div>
+        <div class="box sticker">
+          <h3>What it doesn't</h3>
+          <ul>
+            <li>Some resolution and frame rate. That's where the space comes from.</li>
+            <li>Spatial audio. The smaller copy keeps the main stereo track only. If you saved the original to a folder first, that file still has it.</li>
+          </ul>
+        </div>
+        <div class="box sticker">
+          <h3>What it leaves alone</h3>
+          <ul>
+            <li>Slow-motion videos.</li>
+            <li>Videos that are already small.</li>
+            <li>Any video that wouldn't come out at least 10% smaller.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="privacy" class="privacy" aria-labelledby="priv-h">
+  <div class="wrap">
+    <div>
+      <h2 id="priv-h" class="display">Everything stays on your Mac.</h2>
+      <p>Slimreel reads your Photos library on your own machine. It makes no network requests, there's no account, and the only permission it asks for is Photos, because that's where your videos are.</p>
+      <p class="fine">Small print: Photos itself may download a video's original from iCloud when you preview, move or shrink it. This website has no analytics, no cookies and no trackers. Slimreel is an independent project and isn't affiliated with Apple.</p>
+    </div>
+    <ul class="nope">
+      <li><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="#7EE0C3" stroke="#1F2329" stroke-width="3"/><path d="M10 10l12 12M22 10 10 22" stroke="#1F2329" stroke-width="3.5" stroke-linecap="round"/></svg>No uploads</li>
+      <li><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="#FFD84A" stroke="#1F2329" stroke-width="3"/><path d="M10 10l12 12M22 10 10 22" stroke="#1F2329" stroke-width="3.5" stroke-linecap="round"/></svg>No account</li>
+      <li><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="#7EE0C3" stroke="#1F2329" stroke-width="3"/><path d="M10 10l12 12M22 10 10 22" stroke="#1F2329" stroke-width="3.5" stroke-linecap="round"/></svg>No network requests</li>
+      <li><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="#FFD84A" stroke="#1F2329" stroke-width="3"/><path d="M8.5 16.5 14 22l10-12" fill="none" stroke="#1F2329" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>One permission: Photos</li>
+    </ul>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="faq-h" class="display">Questions.</h2>
+    </div>
+    <div class="faq-list">
+      <details class="sticker" open>
+        <summary>When do I get the space back?</summary>
+        <p>When Recently Deleted is emptied. Videos you delete, move or shrink go there first, and Photos keeps them for a while in case you change your mind. The space returns when Photos empties it, or when you do.</p>
+      </details>
+      <details class="sticker">
+        <summary>Does Shrink lose quality?</summary>
+        <p>Yes, some. A 4K 120 fps video becomes 1080p at 60 fps, or 720p at 30 fps if you choose the smaller setting. If you'd like the full-quality file as well, turn on &ldquo;save the full-quality original to a folder first&rdquo;.</p>
+      </details>
+      <details class="sticker">
+        <summary>Why not just do this in Photos?</summary>
+        <p>Photos won't sort your videos by size, so finding the big ones means opening them one at a time. And it has no way to make a video smaller while keeping its place in your library.</p>
+      </details>
+      <details class="sticker">
+        <summary>What happens to slow-motion videos?</summary>
+        <p>Shrink skips them. You can still keep, move or delete them.</p>
+      </details>
+      <details class="sticker">
+        <summary>Can I move videos to a NAS?</summary>
+        <p>Yes. Move to Folder works with network drives, including SMB shares. Slimreel checks there's enough free space before it starts, and checks each copy's size byte for byte before the video is removed from Photos.</p>
+      </details>
+      <details class="sticker">
+        <summary>Which Macs does it run on?</summary>
+        <p>Any Mac with macOS 14 or later. It's a universal app, so it runs on Apple silicon and Intel.</p>
+      </details>
+      <details class="sticker">
+        <summary>Is it really free?</summary>
+        <p>Yes. Free to download, no account, no ads, and the source is on GitHub under the GPL-3.0 licence.</p>
+      </details>
+      <details class="sticker">
+        <summary>Is this an Apple app?</summary>
+        <p>No. Slimreel is an independent project and isn't affiliated with Apple. iCloud, Photos and Mac are trademarks of Apple Inc.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="final" aria-labelledby="final-h">
+  <div class="wrap">
+    <img src="assets/icon-512.png" width="200" height="200" alt="Slimreel's icon: a small white video clip with dot eyes, pink cheeks and a contented smile, in front of the dotted outline of a bigger video, on mint green.">
+    <h2 id="final-h" class="display">Go on. Make some room.</h2>
+    <a class="btn" href="https://github.com/duggan/Slimreel/releases/latest/download/Slimreel.dmg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M6.5 10.5 12 16l5.5-5.5M4 21h16"/></svg>
+      Download Slimreel.dmg
+    </a>
+    <p>Free &amp; open source &middot; Requires macOS 14 or later &middot; Apple silicon and Intel</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="name">Slimreel</span>
+    <nav aria-label="Project links">
+      <a href="https://github.com/duggan/Slimreel">GitHub</a>
+      <a href="https://github.com/duggan/Slimreel/releases">Releases</a>
+      <a href="https://github.com/duggan/Slimreel/issues">Report a bug</a>
+      <a href="https://github.com/duggan/Slimreel/blob/main/LICENSE">GPL-3.0 licence</a>
+    </nav>
+    <p>Slimreel is free software under the GNU General Public License v3.0. iCloud, Photos and Mac are trademarks of Apple Inc. Slimreel is an independent project and isn't affiliated with Apple.</p>
+  </div>
+</footer>
+
+<script>
+// The hero's pretend window. The page is written in its finished state (so it reads
+// correctly without JavaScript and with reduced motion); this plays it as a loop.
+(function () {
+  var demo = document.getElementById('demo');
+  if (!demo || !window.requestAnimationFrame) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var steps = [
+    { from: 72, to: 8.9 },   // Shrink
+    { from: 58, to: 0 },     // Move to Folder
+    { from: 42, to: 7.8 },   // Shrink
+    { from: 31, to: 31 },    // Keep
+    { from: 24, to: 24 }     // not reviewed yet
+  ];
+  var start = 227, biggest = 72;
+  var rows = [].slice.call(document.querySelectorAll('#d-rows li')).map(function (li) {
+    return { li: li, tag: li.querySelector('.tag'), bar: li.querySelector('.bar b'), size: li.querySelector('.size') };
+  });
+  var store = document.getElementById('d-store');
+  var total = document.getElementById('d-total');
+  var freed = document.getElementById('d-freed');
+  var values, timer;
+
+  function mb(v) { return (v > 0 && v < 10 ? v.toFixed(1) : Math.round(v)) + ' MB'; }
+  function wait(ms, next) { timer = setTimeout(next, ms); }
+
+  function draw() {
+    var sum = 0;
+    values.forEach(function (v, i) {
+      sum += v;
+      rows[i].size.textContent = mb(v);
+      rows[i].bar.style.width = (v / biggest * 100).toFixed(1) + '%';
+    });
+    store.style.width = (sum / start * 100).toFixed(1) + '%';
+    total.textContent = mb(sum);
+    return sum;
+  }
+
+  function reset() {
+    values = steps.map(function (s) { return s.from; });
+    rows.forEach(function (r) {
+      r.li.classList.remove('active');
+      r.bar.classList.remove('done');
+      r.size.classList.remove('done');
+      if (r.tag) r.tag.classList.add('hide');
+    });
+    freed.classList.add('hide');
+    freed.classList.remove('pop');
+    draw();
+    wait(1500, function () { act(0); });
+  }
+
+  function act(i) {
+    if (i >= 4) { wait(4200, reset); return; }
+    var r = rows[i], s = steps[i];
+    r.li.classList.add('active');
+    function finish() {
+      if (r.tag) r.tag.classList.remove('hide');
+      if (s.to !== s.from) {
+        r.bar.classList.add('done');
+        r.size.classList.add('done');
+        freed.textContent = 'Freed ' + mb(start - draw());
+        freed.classList.remove('hide', 'pop');
+        void freed.offsetWidth;
+        freed.classList.add('pop');
+      }
+      wait(900, function () { r.li.classList.remove('active'); act(i + 1); });
+    }
+    if (s.to === s.from) { wait(500, finish); return; }
+    wait(500, function () {
+      var t0 = null, length = 1300;
+      requestAnimationFrame(function frame(now) {
+        if (t0 === null) t0 = now;
+        var t = Math.min(1, (now - t0) / length);
+        var eased = 1 - Math.pow(1 - t, 3);
+        values[i] = s.from + (s.to - s.from) * eased;
+        draw();
+        if (t < 1) requestAnimationFrame(frame); else { values[i] = s.to; finish(); }
+      });
+    });
+  }
+
+  reset();
+})();
+</script>
+</body>
+</html>
