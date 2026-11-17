@@ -190,7 +190,7 @@ struct ShrinkOptionsSheet: View {
     @AppStorage("shrinkArchive") private var archive = false
     @AppStorage("moveFolder") private var folderPath = ""   // shared with Move to Folder
 
-    var folder: URL? { folderPath.isEmpty ? nil : URL(fileURLWithPath: folderPath) }
+    var folder: URL? { folderPath.isEmpty ? nil : URL(fileURLWithPath: folderPath, isDirectory: true) }
     /// Checked off the main thread (see `Library.folderStatus`); nil while checking.
     @State private var status: Library.FolderStatus?
     var folderReachable: Bool { status?.reachable ?? false }
@@ -281,7 +281,7 @@ struct ShrinkOptionsSheet: View {
         panel.canCreateDirectories = true
         panel.prompt = "Choose"
         panel.message = "Where should the full-quality originals be saved?"
-        if !folderPath.isEmpty { panel.directoryURL = URL(fileURLWithPath: folderPath) }
+        if !folderPath.isEmpty { panel.directoryURL = URL(fileURLWithPath: folderPath, isDirectory: true) }
         if panel.runModal() == .OK, let url = panel.url { folderPath = url.path }
     }
 

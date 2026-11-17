@@ -216,7 +216,7 @@ struct ContentView: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "Move Here"
         panel.message = "Choose where to save \(ids.count) video\(ids.count == 1 ? "" : "s") (\(fmtBytes(lib.bytes(ids))))"
-        if !moveFolderPath.isEmpty { panel.directoryURL = URL(fileURLWithPath: moveFolderPath) }
+        if !moveFolderPath.isEmpty { panel.directoryURL = URL(fileURLWithPath: moveFolderPath, isDirectory: true) }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         moveFolderPath = url.path
         // Free space is checked off the main thread before the confirmation appears:

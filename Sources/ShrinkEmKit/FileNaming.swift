@@ -19,12 +19,12 @@ public enum FileNaming {
     public static func uniqueURL(in folder: URL, name: String,
                                  exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> URL {
         let safe = name.isEmpty ? "Video.mov" : name.replacingOccurrences(of: "/", with: "-")
-        var url = folder.appendingPathComponent(safe)
+        var url = folder.appendingPathComponent(safe, isDirectory: false)
         let base = (safe as NSString).deletingPathExtension
         let ext = (safe as NSString).pathExtension
         var n = 2
         while exists(url.path) {
-            url = folder.appendingPathComponent(ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)")
+            url = folder.appendingPathComponent(ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)", isDirectory: false)
             n += 1
         }
         return url

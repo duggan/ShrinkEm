@@ -238,7 +238,7 @@ final class WorkQueue: ObservableObject {
         for (i, item) in job.items.enumerated() {
             if shouldStop(id) { break }
             begin(id, i, item)
-            let url = tmp.appendingPathComponent(UUID().uuidString + ".mov")
+            let url = tmp.appendingPathComponent(UUID().uuidString + ".mov", isDirectory: false)
             do {
                 guard let asset = liveAsset(item) else { throw Library.ShrinkError("No longer in Photos") }
                 _ = try await Library.reencode(asset, settings: settings, to: url, cancel: cancel,
@@ -429,7 +429,7 @@ extension Library {
             let now = Date(), gap = now.timeIntervalSince(last); last = now
             if gap > 0.1 { stalls.append(String(format: "%.0fms at %.2fs", gap * 1000, now.timeIntervalSince(t0))) }
         }
-        let target = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_TARGET"].map { URL(fileURLWithPath: $0) }
+        let target = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_TARGET"].map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? dir.appendingPathComponent("target")
         try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
         let selection = Set(items.sorted { $0.bytes > $1.bytes }.dropFirst(5).prefix(300).map(\.id))
@@ -441,6 +441,16 @@ extension Library {
             // thread stay free while it runs.
             last = Date(); stalls.removeAll()
             let t = Date()
+            // URL(fileURLWithPath:) without a directory hint stats the path to find out
+            // (on a busy share: seconds, measured in a user's session). The app passes
+            // isDirectory: true; time both.
+            for _ in 0..<3 {
+                let tA = Date(); _ = URL(fileURLWithPath: target.path)
+                let dA = Date().timeIntervalSince(tA)
+                let tB = Date(); _ = URL(fileURLWithPath: target.path, isDirectory: true)
+                let dB = Date().timeIntervalSince(tB)
+                note(String(format: "URL from path: no hint %7.1f ms, isDirectory:true %5.2f ms", dA * 1000, dB * 1000))
+            }
             let st = await Library.folderStatus(target)
             note(String(format: "folderStatus(target) off-main     %7.1f ms (reachable \(st.reachable)); main stalls meanwhile: \(stalls)", Date().timeIntervalSince(t) * 1000))
             time("bytes(300 selected) x3") { for _ in 0..<3 { _ = bytes(selection) } }

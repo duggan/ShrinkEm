@@ -44,11 +44,11 @@ final class Library: ObservableObject {
             return
         }
         await reload()
-        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_DIR"] { await stallSelfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir)) }
-        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir, isDirectory: true)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir, isDirectory: true)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_DIR"] { await stallSelfTest(URL(fileURLWithPath: dir, isDirectory: true)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir, isDirectory: true)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir, isDirectory: true)) }
     }
 
     /// Read-only self-test: exports the smallest video (twice, to check name

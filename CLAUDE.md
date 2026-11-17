@@ -92,6 +92,11 @@ asks again. Written `ShrinkEm` everywhere; "Shrink 'Em" is only for speech.
     `fileExists` and free space each blocked ~0.8–0.9 s while a job streamed to SMB.
     Use `Library.folderStatus` (off-main); the Shrink sheet shows "Checking the
     folder…" and the Move confirmation is shown once its free-space check returns.
+  - Build folder URLs with `URL(fileURLWithPath:isDirectory: true)` (and file URLs with
+    `appendingPathComponent(_:isDirectory: false)`). Without the hint, Foundation
+    `lstat`s the path to find out, which on the share took 1.4 s per uncached path and,
+    in a user's session, 9.5 s of main-thread time in the Shrink sheet (its `folder`
+    property and the Save Originals & Shrink button).
   - Measured after the fix (300 selected rows, a move streaming to SMB): no main-thread
     stall over 100 ms when selecting or queueing (before: ~0.9 s each, worse with more
     rows or repeated queueing).

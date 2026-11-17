@@ -183,7 +183,7 @@ extension Library {
     func renderQueueSnapshots(_ dir: URL) {
         let picks = Array(items.sorted { $0.bytes > $1.bytes }.prefix(9))
         guard picks.count == 9 else { return }
-        let folder = URL(fileURLWithPath: "/Volumes/share/Files/iCloudVideos")
+        let folder = URL(fileURLWithPath: "/Volumes/share/Files/iCloudVideos", isDirectory: true)
         var running = Job(kind: .shrink(ShrinkSettings(maxHeight: 1080, maxFPS: 60, archiveFolder: folder)), items: Array(picks[0..<4]))
         running.state = .running; running.index = 2; running.name = picks[1].filename
         running.currentBytes = picks[1].bytes; running.doneBytes = picks[0].bytes; running.fileProgress = 0.42
