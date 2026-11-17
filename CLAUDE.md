@@ -77,6 +77,24 @@ asks again. Written `ShrinkEm` everywhere; "Shrink 'Em" is only for speech.
   quitting (a running Shrink would leave both versions until its job deletes). Measured
   on a 1,945-video library: no main-thread stall over 60 ms while a job runs; ~100-150 ms
   once when a job starts or finishes (the table redraws for `busyIDs`).
+- **Main-thread performance** (found from a beachball when queueing many selected
+  videos while a job wrote to a network share; `SHRINKEM_STALLTEST_DIR`, below):
+  - `ContentView` caches the filtered, sorted rows (`RowsCache`, keyed by `RowsKey`:
+    `Library.itemsVersion`/`keptVersion`, filters, dates, sort). Rebuilding them in
+    `body` re-sorted the library on every selection change or queue marker, and gave
+    the table a new array to re-diff. Sorting uses `ContentView.sorted` (a direct
+    comparison per column, ties by id; filenames as Finder sorts them), not
+    `sorted(using: KeyPathComparator)`, which was the biggest main-thread cost.
+  - Row cells that can change (`Thumb`, `RowFlags`) are `Equatable` and marked
+    `.equatable()`, so unchanged rows aren't re-laid-out (the table re-measures row
+    heights for every row it thinks changed).
+  - Never touch a folder that may be on a network share from the main thread:
+    `fileExists` and free space each blocked ~0.8–0.9 s while a job streamed to SMB.
+    Use `Library.folderStatus` (off-main); the Shrink sheet shows "Checking the
+    folder…" and the Move confirmation is shown once its free-space check returns.
+  - Measured after the fix (300 selected rows, a move streaming to SMB): no main-thread
+    stall over 100 ms when selecting or queueing (before: ~0.9 s each, worse with more
+    rows or repeated queueing).
 - **Kept** marks are local (`UserDefaults` key `kept`, by local identifier) and carried
   over to a shrunk replacement.
 
@@ -123,6 +141,12 @@ asks again. Written `ShrinkEm` everywhere; "Shrink 'Em" is only for speech.
   `<dir>`, nothing imported or deleted), checks ordering, duplicate and cancel rules and
   `busyIDs`, and logs the longest main-thread stall. Add `SHRINKEM_QUEUETEST_BIG=1` for a
   longer shrink (a ~100 MB 4K video).
+
+- `SHRINKEM_STALLTEST_DIR=<dir>` (optionally `SHRINKEM_STALLTEST_TARGET=<folder>`, e.g. on
+  a network share): checks the table's fast sort against the generic one for every
+  column, then times the share checks and main-thread stalls while selecting 300 rows
+  (via a test-only notification) and queueing them during a dry-run move to the target.
+  Pair with `sample <pid> 30 1` to see where the main thread spends its time.
 
 Run with `open -n --env NAME=value build/ShrinkEm.app`.
 

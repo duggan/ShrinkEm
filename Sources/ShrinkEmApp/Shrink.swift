@@ -191,10 +191,9 @@ struct ShrinkOptionsSheet: View {
     @AppStorage("moveFolder") private var folderPath = ""   // shared with Move to Folder
 
     var folder: URL? { folderPath.isEmpty ? nil : URL(fileURLWithPath: folderPath) }
-    var folderReachable: Bool {
-        var isDir: ObjCBool = false
-        return !folderPath.isEmpty && FileManager.default.fileExists(atPath: folderPath, isDirectory: &isDir) && isDir.boolValue
-    }
+    /// Checked off the main thread (see `Library.folderStatus`); nil while checking.
+    @State private var status: Library.FolderStatus?
+    var folderReachable: Bool { status?.reachable ?? false }
     var canStart: Bool { !archive || folderReachable }
 
     var body: some View {
@@ -225,10 +224,16 @@ struct ShrinkOptionsSheet: View {
                             Spacer()
                             Button("Choose…", action: chooseFolder)
                         }
-                        if !folderPath.isEmpty && !folderReachable {
+                        if !folderPath.isEmpty && status == nil {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Checking the folder…").foregroundStyle(.secondary)
+                            }
+                            .font(.callout)
+                        } else if !folderPath.isEmpty && !folderReachable {
                             Label("That folder isn't available — is the drive connected?", systemImage: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange).font(.callout)
-                        } else if folderReachable, let folder, let free = Library.freeSpace(at: folder),
+                        } else if folderReachable, let free = status?.free,
                                   free < lib.bytes(ids) + 1_000_000_000 {
                             Label("Only \(fmtBytes(free)) free there; originals that don't fit won't be shrunk.", systemImage: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange).font(.callout)
@@ -262,6 +267,11 @@ struct ShrinkOptionsSheet: View {
         }
         .padding(20)
         .frame(width: 480)
+        .task(id: archive ? folderPath : "") {
+            status = nil
+            guard archive, let folder else { return }
+            status = await Library.folderStatus(folder)
+        }
     }
 
     func chooseFolder() {

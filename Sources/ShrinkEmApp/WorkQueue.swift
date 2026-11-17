@@ -406,3 +406,100 @@ extension Library {
         exit(0)
     }
 }
+
+// MARK: - Stall test hook
+
+extension Library {
+    static let testSelect = Notification.Name("ShrinkEmTestSelect")
+
+    /// `SHRINKEM_STALLTEST_DIR=<dir>` (optionally `SHRINKEM_STALLTEST_TARGET=<folder>`, e.g.
+    /// a network share): times the main-thread work behind queueing many videos, idle
+    /// and while a dry-run move streams a large video to the target. Logs and quits.
+    func stallSelfTest(_ dir: URL) async {
+        var log = ""
+        let t0 = Date()
+        func note(_ s: String) { log += String(format: "%7.2fs  ", Date().timeIntervalSince(t0)) + s + "\n" }
+        func time(_ label: String, _ body: () -> Void) {
+            let t = Date(); body(); note(String(format: "%-34@ %7.1f ms", label as NSString, Date().timeIntervalSince(t) * 1000))
+        }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+
+        var last = Date(), stalls: [String] = []
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
+            let now = Date(), gap = now.timeIntervalSince(last); last = now
+            if gap > 0.1 { stalls.append(String(format: "%.0fms at %.2fs", gap * 1000, now.timeIntervalSince(t0))) }
+        }
+        let target = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_TARGET"].map { URL(fileURLWithPath: $0) }
+            ?? dir.appendingPathComponent("target")
+        try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        let selection = Set(items.sorted { $0.bytes > $1.bytes }.dropFirst(5).prefix(300).map(\.id))
+        let sortOrder = [KeyPathComparator(\VideoItem.bytes, order: .reverse)]
+
+        func probes(_ phase: String) async {
+            note("-- \(phase)")
+            // The share is checked off the main thread now; time it, and watch the main
+            // thread stay free while it runs.
+            last = Date(); stalls.removeAll()
+            let t = Date()
+            let st = await Library.folderStatus(target)
+            note(String(format: "folderStatus(target) off-main     %7.1f ms (reachable \(st.reachable)); main stalls meanwhile: \(stalls)", Date().timeIntervalSince(t) * 1000))
+            time("bytes(300 selected) x3") { for _ in 0..<3 { _ = bytes(selection) } }
+            time("rows: filter + sort") { _ = items.filter { !kept.contains($0.id) }.sorted(using: sortOrder) }
+            time("timeline: MonthBucket.make") { _ = MonthBucket.make(items.lazy.map { (date: $0.sortDate, bytes: $0.bytes) }) }
+            time("date controls: years, min, max") {
+                let d = items.map(\.sortDate).filter { $0 != .distantPast }
+                _ = Set(d.map { Calendar.current.component(.year, from: $0) }); _ = d.min(); _ = d.max()
+            }
+            time("PHAsset.fetch 1 by id") { _ = PHAsset.fetchAssets(withLocalIdentifiers: [items[0].id], options: nil).firstObject }
+        }
+
+        // The table's fast sort must order by the same key as the generic comparator.
+        let columns: [(String, KeyPathComparator<VideoItem>, (VideoItem) -> String)] = [
+            ("bytes", KeyPathComparator(\VideoItem.bytes), { "\($0.bytes)" }),
+            ("duration", KeyPathComparator(\VideoItem.duration), { "\($0.duration)" }),
+            ("mbPerMin", KeyPathComparator(\VideoItem.mbPerMin), { "\($0.mbPerMin)" }),
+            ("sortDate", KeyPathComparator(\VideoItem.sortDate), { "\($0.sortDate)" }),
+            ("pixels", KeyPathComparator(\VideoItem.pixels), { "\($0.pixels)" }),
+            ("filename", KeyPathComparator(\VideoItem.filename), { $0.filename.lowercased() }),
+        ]
+        for (name, base, key) in columns {
+            for order in [SortOrder.forward, .reverse] {
+                var c = base; c.order = order
+                let fast = ContentView.sorted(items, by: [c]).map(key)
+                // Filenames deliberately sort as Finder does, not by raw String order.
+                let slow = name == "filename"
+                    ? items.sorted { let r = $0.filename.localizedStandardCompare($1.filename)
+                                     return order == .forward ? r == .orderedAscending : r == .orderedDescending }.map(key)
+                    : items.sorted(using: [c]).map(key)
+                note("sort \(name) \(order == .forward ? "asc" : "desc"): \(fast == slow ? "same order" : "DIFFERENT")")
+            }
+        }
+        await probes("idle")
+        guard let large = items.filter({ $0.bytes > 150_000_000 && $0.bytes < 700_000_000 }).min(by: { $0.bytes < $1.bytes }) else {
+            note("no large video"); return
+        }
+        let q = queue
+        q.enqueue(.move(folder: target), ids: [large.id], dryRun: true)
+        let start = Date()
+        while (q.current?.fileProgress ?? 0) < 0.2 && Date().timeIntervalSince(start) < 60 {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        await probes("while moving \(fmtBytes(large.bytes)) to \(target.lastPathComponent)")
+        note("-- selecting 300 rows in the list")
+        last = Date(); stalls.removeAll()
+        NotificationCenter.default.post(name: Library.testSelect, object: selection)
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        note("stalls >100 ms in the 3 s after selecting: \(stalls)")
+        note("-- queueing those 300 while the move runs")
+        last = Date(); stalls.removeAll()
+        time("enqueue(300)") { q.enqueue(.shrink(ShrinkSettings(maxHeight: 1080, maxFPS: 60)), ids: selection, dryRun: true) }
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        note("stalls >100 ms in the 4 s after queueing: \(stalls)")
+        for job in q.jobs where job.isActive { q.cancel(job.id) }
+        while q.isWorking { try? await Task.sleep(nanoseconds: 100_000_000) }
+        timer.invalidate()
+        if ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_TARGET"] != nil { try? FileManager.default.removeItem(at: target) }
+        try? log.write(to: dir.appendingPathComponent("stalltest.log"), atomically: true, encoding: .utf8)
+        exit(0)
+    }
+}

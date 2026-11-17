@@ -6,8 +6,9 @@ import AVKit
 import UniformTypeIdentifiers
 import ShrinkEmKit
 
-struct Thumb: View {
+struct Thumb: View, Equatable {
     let asset: PHAsset
+    static func == (a: Thumb, b: Thumb) -> Bool { a.asset.localIdentifier == b.asset.localIdentifier }
     @State private var image: NSImage?
     var body: some View {
         ZStack {

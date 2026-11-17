@@ -11,18 +11,73 @@ struct ContentView: View {
     @State private var selection = Set<String>()
     @State private var sortOrder = [KeyPathComparator(\VideoItem.bytes, order: .reverse)]
     @State private var pendingDelete: Set<String>?
-    @State private var pendingMove: (ids: Set<String>, folder: URL)?
+    @State private var pendingMove: (ids: Set<String>, folder: URL, free: Int64?)?
     @AppStorage("moveFolder") private var moveFolderPath = ""
     @State private var pendingShrink: Set<String>?
     @AppStorage("minMB") private var minMB = 0
     @AppStorage("hideKept") private var hideKept = true
     @State private var dateFrom: Date?
     @State private var dateTo: Date?
+    /// The filtered, sorted list, cached. Rebuilding it on every redraw (selection
+    /// changes, queue markers) re-sorted the whole library and made the table re-diff
+    /// every row; with hundreds of rows selected that beachballed. See `RowsKey`.
+    @State private var cache = RowsCache()
 
-    /// Items passing every filter except the date range (feeds the timeline).
-    var undated: [VideoItem] {
+    /// What the rows depend on. The rows are rebuilt only when this changes.
+    struct RowsKey: Equatable {
+        var items: Int, kept: Int, minMB: Int, hideKept: Bool
+        var from: Date?, to: Date?, sort: [KeyPathComparator<VideoItem>]
+    }
+    struct RowsCache {
+        var key: RowsKey?
+        var undated: [VideoItem] = []   // every filter but the date range (feeds the timeline)
+        var rows: [VideoItem] = []
+    }
+    var rowsKey: RowsKey {
+        RowsKey(items: lib.itemsVersion, kept: lib.keptVersion, minMB: minMB, hideKept: hideKept,
+                from: dateFrom, to: dateTo, sort: sortOrder)
+    }
+
+    func computeRows() -> RowsCache {
         let min = Int64(minMB) * 1_000_000
-        return lib.items.filter { $0.bytes >= min && !(hideKept && lib.kept.contains($0.id)) }
+        let kept = lib.kept
+        let undated = lib.items.filter { $0.bytes >= min && !(hideKept && kept.contains($0.id)) }
+        return RowsCache(key: rowsKey, undated: undated,
+                         rows: ContentView.sorted(undated.filter(inDateRange), by: sortOrder))
+    }
+
+    func rebuildRows() {
+        if cache.key != rowsKey { cache = computeRows() }
+    }
+
+    /// Sorts on the table's column with a direct comparison (the generic
+    /// `sorted(using:)` was the single biggest cost on the main thread). Ties break on
+    /// the id so the order is stable and the table doesn't see rows move.
+    static func sorted(_ items: [VideoItem], by order: [KeyPathComparator<VideoItem>]) -> [VideoItem] {
+        guard let first = order.first else { return items }
+        let ascending = first.order == .forward
+        func by<T: Comparable>(_ key: (VideoItem) -> T) -> [VideoItem] {
+            items.sorted { a, b in
+                let ka = key(a), kb = key(b)
+                if ka != kb { return ascending ? ka < kb : ka > kb }
+                return a.id < b.id
+            }
+        }
+        switch first.keyPath {
+        case \VideoItem.bytes: return by(\.bytes)
+        case \VideoItem.duration: return by(\.duration)
+        case \VideoItem.mbPerMin: return by(\.mbPerMin)
+        case \VideoItem.sortDate: return by(\.sortDate)
+        case \VideoItem.pixels: return by(\.pixels)
+        case \VideoItem.filename:
+            // As Finder sorts names: case-insensitive, numbers in numeric order (IMG_2 < IMG_10).
+            return items.sorted { a, b in
+                let r = a.filename.localizedStandardCompare(b.filename)
+                if r != .orderedSame { return ascending ? r == .orderedAscending : r == .orderedDescending }
+                return a.id < b.id
+            }
+        default: return items.sorted(using: order)
+        }
     }
 
     func inDateRange(_ item: VideoItem) -> Bool {
@@ -37,8 +92,11 @@ struct ContentView: View {
     }
 
     var body: some View {
-        let base = undated
-        let rows = base.filter(inDateRange).sorted(using: sortOrder)
+        // Normally the cache. Just after an input changes (before onChange stores the
+        // new rows) compute them here, so the list never flashes empty.
+        let current = cache.key == rowsKey ? cache : computeRows()
+        let base = current.undated
+        let rows = current.rows
         VStack(spacing: 0) {
             header(rows)
             if !base.isEmpty {
@@ -72,7 +130,13 @@ struct ContentView: View {
             } cancel: { pendingShrink = nil }
             .environmentObject(lib)
         }
+        .onAppear(perform: rebuildRows)
+        .onChange(of: rowsKey) { rebuildRows() }
         .task { await lib.start() }
+        // Test hook only (stall test): select rows as a user would.
+        .onReceive(NotificationCenter.default.publisher(for: Library.testSelect)) { note in
+            if let ids = note.object as? Set<String> { selection = ids }
+        }
         .toolbar { toolbar }
         .confirmationDialog(deleteTitle, isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
@@ -106,7 +170,7 @@ struct ContentView: View {
         guard let m = pendingMove else { return "" }
         var s = "The original files (plus any edited versions) are saved to \(m.folder.path), downloading from iCloud if needed. Only videos that save and check out correctly are then moved to Photos → Recently Deleted."
         let needed = lib.bytes(m.ids)
-        if let free = Library.freeSpace(at: m.folder), free < needed + 1_000_000_000 {
+        if let free = m.free, free < needed + 1_000_000_000 {
             s += "\n\n⚠️ That drive only has \(fmtBytes(free)) free, and these videos need \(fmtBytes(needed)). Some may fail to save (they won't be deleted)."
         }
         return s
@@ -155,7 +219,12 @@ struct ContentView: View {
         if !moveFolderPath.isEmpty { panel.directoryURL = URL(fileURLWithPath: moveFolderPath) }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         moveFolderPath = url.path
-        pendingMove = (ids, url)
+        // Free space is checked off the main thread before the confirmation appears:
+        // on a busy network share the check can take most of a second.
+        Task {
+            let status = await Library.folderStatus(url)
+            pendingMove = (ids, url, status.free)
+        }
     }
 
     func header(_ rows: [VideoItem]) -> some View {
@@ -194,7 +263,7 @@ struct ContentView: View {
 
     func table(_ rows: [VideoItem]) -> some View {
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("") { Thumb(asset: $0.asset) }.width(76)
+            TableColumn("") { Thumb(asset: $0.asset).equatable() }.width(76)
             TableColumn("Size", value: \.bytes) { item in
                 Text(fmtBytes(item.bytes)).monospacedDigit().fontWeight(.medium)
             }.width(min: 70, ideal: 85)
@@ -208,12 +277,8 @@ struct ContentView: View {
                 .width(min: 80, ideal: 90)
             TableColumn("Name", value: \.filename) { Text($0.filename).lineLimit(1).truncationMode(.middle) }
             TableColumn("") { item in
-                HStack(spacing: 4) {
-                    if lib.busyIDs.contains(item.id) { Image(systemName: "clock").foregroundStyle(.secondary).help("In the queue") }
-                    if lib.kept.contains(item.id) { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).help("Kept") }
-                    if item.isFavorite { Image(systemName: "heart.fill").foregroundStyle(.pink).help("Favorite") }
-                    if item.isEdited { Image(systemName: "slider.horizontal.3").foregroundStyle(.secondary).help("Edited — moving saves the original and the edited version") }
-                }
+                RowFlags(busy: lib.busyIDs.contains(item.id), kept: lib.kept.contains(item.id),
+                         favorite: item.isFavorite, edited: item.isEdited).equatable()
             }.width(56)
         }
         .contextMenu(forSelectionType: String.self) { ids in
@@ -277,3 +342,17 @@ struct ContentView: View {
     }
 }
 
+
+/// The small icons at the end of a row. Equatable, so a redraw that doesn't change a
+/// row's flags doesn't make the table re-lay-out that row.
+struct RowFlags: View, Equatable {
+    let busy: Bool, kept: Bool, favorite: Bool, edited: Bool
+    var body: some View {
+        HStack(spacing: 4) {
+            if busy { Image(systemName: "clock").foregroundStyle(.secondary).help("In the queue") }
+            if kept { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).help("Kept") }
+            if favorite { Image(systemName: "heart.fill").foregroundStyle(.pink).help("Favorite") }
+            if edited { Image(systemName: "slider.horizontal.3").foregroundStyle(.secondary).help("Edited — moving saves the original and the edited version") }
+        }
+    }
+}

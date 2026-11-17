@@ -27,11 +27,15 @@ struct VideoItem: Identifiable, Hashable {
 
 @MainActor
 final class Library: ObservableObject {
-    @Published var items: [VideoItem] = []
+    @Published var items: [VideoItem] = [] { didSet { itemsVersion &+= 1 } }
+    /// Bumped whenever `items` or `kept` change, so views can cache work derived from
+    /// them without comparing thousands of items.
+    private(set) var itemsVersion = 0
+    private(set) var keptVersion = 0
     @Published var loading = false
     @Published var progress = 0.0
     @Published var message: String?
-    @Published var kept: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "kept") ?? [])
+    @Published var kept: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "kept") ?? []) { didSet { keptVersion &+= 1 } }
 
     func start() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
@@ -42,6 +46,7 @@ final class Library: ObservableObject {
         await reload()
         if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SELFTEST_DIR"] { await selfTest(URL(fileURLWithPath: dir)) }
         if let dir = ProcessInfo.processInfo.environment["SHRINKEM_SHRINKTEST_DIR"] { await shrinkSelfTest(URL(fileURLWithPath: dir)) }
+        if let dir = ProcessInfo.processInfo.environment["SHRINKEM_STALLTEST_DIR"] { await stallSelfTest(URL(fileURLWithPath: dir)) }
         if let dir = ProcessInfo.processInfo.environment["SHRINKEM_QUEUETEST_DIR"] { await queueSelfTest(URL(fileURLWithPath: dir)) }
         if let dir = ProcessInfo.processInfo.environment["SHRINKEM_RENDER_DIR"] { renderTimelineSnapshots(URL(fileURLWithPath: dir)) }
     }
@@ -165,7 +170,24 @@ final class Library: ObservableObject {
     /// until their job finishes. Changes only when jobs start or finish.
     @Published var busyIDs = Set<String>()
 
-    static func freeSpace(at url: URL) -> Int64? {
+    /// Whether a folder is there, and its free space, checked off the main thread. On a
+    /// network share that's busy with a job's writes, each of these calls can block for
+    /// most of a second (measured: 808 ms for free space, ~900 ms for four exists checks),
+    /// so the UI must never make them while drawing.
+    struct FolderStatus: Equatable, Sendable {
+        var reachable: Bool
+        var free: Int64?
+    }
+
+    nonisolated static func folderStatus(_ url: URL) async -> FolderStatus {
+        await Task.detached(priority: .userInitiated) {
+            var isDir: ObjCBool = false
+            let there = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+            return FolderStatus(reachable: there, free: there ? freeSpace(at: url) : nil)
+        }.value
+    }
+
+    nonisolated static func freeSpace(at url: URL) -> Int64? {
         // "Important usage" capacity reports 0 on network volumes (SMB/AFP/NFS),
         // so fall back to the plain free-space figure when it's missing or zero.
         let v = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
